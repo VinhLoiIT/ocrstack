@@ -5,5 +5,4 @@ from .conv_adapter import (CollumwiseConcat, CollumwisePool, ConvNetAdapter,
 from .embed import (CharacterEmbedding, Classifier, Flatten, ImageEmbedding,
                     LinearClassifier, TextEmbedding)
 from .sequence_decoder import TransformerDecoderAdapter
-from .sequence_encoder import (GRUEncoderAdapter, LSTMEncoderAdapter,
-                               TransformerEncoderAdapter)
+from .sequence_encoder import TransformerEncoderAdapter
