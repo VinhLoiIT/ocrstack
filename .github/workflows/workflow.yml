@@ -50,7 +50,7 @@ jobs:
         pip install pytest
     - name: Testing with pytest
       run: |
-        pyhon -m pytest test
+        python -m pytest test
   
 
   build_doc:
