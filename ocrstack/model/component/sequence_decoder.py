@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,12 +18,24 @@ class BaseDecoder(nn.Module):
     '''
 
     def __init__(self, text_embedding: nn.Module, text_classifier: nn.Module,
-                 sos_token_idx: Tensor, eos_token_idx: Tensor):
+                 sos_onehot: Tensor, eos_onehot: Tensor):
         super(BaseDecoder, self).__init__()
         self.text_embedding = text_embedding
         self.text_classifier = text_classifier
-        self.register_buffer('sos_token_idx', sos_token_idx)
-        self.register_buffer('eos_token_idx', eos_token_idx)
+        self.register_buffer('sos_onehot', sos_onehot.float())
+        self.register_buffer('eos_onehot', eos_onehot.float())
+
+    def decode(self, memory, max_length, memory_key_padding_mask=None, **kwargs):
+        # type: (Tensor, int, Optional[Tensor], Any) -> Tuple[Tensor, Tensor]
+        '''
+        Arguments:
+        ----------
+        - memory: (B, S, E)
+
+        Returns:
+        --------
+        - logits: (B, T, V)
+        '''
 
 
 class TransformerDecoderAdapter(BaseDecoder):
@@ -32,8 +44,8 @@ class TransformerDecoderAdapter(BaseDecoder):
     This class adapts `nn.TransformerDecoder` class to the stack
     '''
     def __init__(self, text_embedding: nn.Module, text_classifier: nn.Module,
-                 sos_token_idx: Tensor, eos_token_idx: Tensor, decoder: nn.TransformerDecoder):
-        super(TransformerDecoderAdapter, self).__init__(text_embedding, text_classifier, sos_token_idx, eos_token_idx)
+                 sos_onehot: Tensor, eos_onehot: Tensor, decoder: nn.TransformerDecoder):
+        super(TransformerDecoderAdapter, self).__init__(text_embedding, text_classifier, sos_onehot, eos_onehot)
         self.decoder = decoder
 
     def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
@@ -59,31 +71,21 @@ class TransformerDecoderAdapter(BaseDecoder):
         output = self.text_classifier(output)           # [B, T, V]
         return output
 
-    def decode(self, memory, max_length):
-        # type: (Tensor, int) -> Tuple[Tensor, Tensor]
-        '''
-        Arguments:
-        ----------
-        - memory: (B, S, E)
-
-        Returns:
-        --------
-        - logits: (B, 1, V)
-        '''
+    def decode(self, memory, max_length, memory_key_padding_mask=None, **kwargs):
+        # type: (Tensor, int, Optional[Tensor], Any) -> Tuple[Tensor, Tensor]
         batch_size = memory.size(0)
 
-        assert isinstance(self.sos_token_idx, torch.Tensor)
-        assert isinstance(self.eos_token_idx, torch.Tensor)
+        assert isinstance(self.sos_onehot, torch.Tensor)
+        assert isinstance(self.eos_onehot, torch.Tensor)
 
-        predicts = self.sos_token_idx.unsqueeze(0).repeat(batch_size, 1, 1)     # [B, 1, V]
-        ends = self.eos_token_idx.argmax(-1).repeat(batch_size).squeeze(-1)     # [B]
+        predicts = self.sos_onehot.unsqueeze(0).repeat(batch_size, 1, 1)     # [B, 1, V]
+        ends = self.eos_onehot.argmax(-1).repeat(batch_size).squeeze(-1)     # [B]
 
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         lengths = torch.ones(batch_size, dtype=torch.long).fill_(max_length)
         for t in range(max_length):
-            text = self.text_embedding(predicts)                # [B, T, E]
-            text = self.forward(memory, text)                   # [B, T, V]
-            output = F.softmax(text, dim=-1)                    # [B, 1, V]
+            text = self.forward(memory, predicts)               # [B, T, V]
+            output = F.softmax(text[:, [-1]], dim=-1)                    # [B, 1, V]
             predicts = torch.cat([predicts, output], dim=1)     # [B, T + 1, V]
 
             # set flag for early break
