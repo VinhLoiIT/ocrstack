@@ -51,7 +51,7 @@ class Trainer(object):
 
         with torch.cuda.amp.autocast(enabled=self.config.use_amp):
             loss_dict: Dict[str, torch.Tensor] = self.model(inputs, targets)
-            loss = sum(loss_dict.values())
+            loss: torch.Tensor = torch.stack(list(loss_dict.values())).sum()
 
         self.grad_scaler.scale(loss).backward()
         self.grad_scaler.unscale_(self.optimizer)
