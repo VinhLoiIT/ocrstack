@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from typing import List, Optional, Union, Callable
 
+import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 from PIL import Image
 import logging
@@ -67,3 +69,25 @@ class OCRDataset(Dataset):
         }
 
         return data
+
+
+class DummyDataset(Dataset):
+    def __init__(self, num_samples, image_channels, height, width, max_lengths, vocab_size, onehot: bool = True):
+        super(DummyDataset, self).__init__()
+        self.images = torch.rand(num_samples, image_channels, height, width)
+        self.texts = torch.randint(0, vocab_size, (num_samples, max_lengths))
+        if onehot:
+            self.onehot_texts = F.one_hot(self.texts, vocab_size)
+        else:
+            self.onehot_texts = None
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, index):
+        return {
+            'imagePath': 'tempPath',
+            'textPath': 'textPath',
+            'image': self.images[index],
+            'text': self.onehot_texts[index] if self.onehot_texts is not None else self.texts[index],
+        }

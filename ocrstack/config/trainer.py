@@ -6,8 +6,6 @@ from dataclasses import dataclass
 
 @dataclass
 class TrainerConfig(Config):
-    seed: int
-    num_workers: int
     batch_size: int
     lr: float
     device: str
@@ -15,7 +13,10 @@ class TrainerConfig(Config):
     iter_eval: int
     iter_visualize: int
     num_iter_visualize: int
-    checkpoint_dir: str
+    num_iter_warmup: int = 2
+    seed: int = 0
+    num_workers: int = 2
+    checkpoint_dir: str = 'checkpoints'
     log_file: str = 'log.txt'
     log_interval: int = 10
     monitor_metric: str = 'CER'

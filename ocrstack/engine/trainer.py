@@ -1,10 +1,10 @@
 import logging
+from ocrstack.model.arch.base import BaseModel
 from ocrstack.data.collate import CollateBatch
 from pathlib import Path
 from typing import Dict, Optional
 
 import torch
-import torch.nn as nn
 from torch.nn.utils.clip_grad import clip_grad_value_
 import torch.optim as optim
 from ocrstack.metrics import ACCMeter, CERMeter, WERMeter
@@ -20,7 +20,7 @@ class Trainer(object):
     '''
 
     def __init__(self,
-                 model: nn.Module,
+                 model: BaseModel,
                  optimizer: optim.Optimizer,
                  config: TrainerConfig,
                  ):
@@ -42,6 +42,7 @@ class Trainer(object):
         }
 
         self.checkpoint_saver = CheckpointSaver(Path(config.checkpoint_dir), config.monitor_metric_type)
+        self.state = {}
 
     def train_step(self, batch: CollateBatch):
         inputs, targets = batch.images, batch.text
@@ -50,8 +51,8 @@ class Trainer(object):
         self.optimizer.zero_grad()
 
         with torch.cuda.amp.autocast(enabled=self.config.use_amp):
-            loss_dict: Dict[str, torch.Tensor] = self.model(inputs, targets)
-            loss: torch.Tensor = torch.stack(list(loss_dict.values())).sum()
+            outputs = self.model(batch)
+            loss = self.model.compute_batch_loss(batch, outputs)
 
         self.grad_scaler.scale(loss).backward()
         self.grad_scaler.unscale_(self.optimizer)
@@ -61,7 +62,15 @@ class Trainer(object):
         return loss.item()
 
     def val_step(self, batch):
-        pass
+        inputs, targets = batch.images, batch.text
+        inputs = inputs.to(self.config.device)
+        targets = targets.to(self.config.device)
+
+        with torch.cuda.amp.autocast(enabled=self.config.use_amp), torch.no_grad():
+            outputs = self.model(batch)
+            metrics = self.model.compute_batch_metrics(batch, outputs)
+
+        self.model.update_metrics(self.state.get('metrics', {}), metrics)
 
     def visualize_step(self, batch):
         pass
@@ -150,13 +159,13 @@ class Trainer(object):
         self.config.to_yaml(config_path)
 
     def _warmup(self, train_loader):
-        logging.info(f'Warmup trainer for {self.config.iter_warmup} iteration(s)')
+        logging.info(f'Warmup trainer for {self.config.num_iter_warmup} iteration(s)')
         self.model.train()
-        if self.config.iter_warmup > 0:
+        if self.config.num_iter_warmup > 0:
             for i, batch in enumerate(train_loader):
                 self.train_step(batch)
                 logging.debug(f'Warmed {i + 1} iteration(s)')
-                if i + 1 == self.config.iter_warmup:
+                if i + 1 == self.config.num_iter_warmup:
                     break
         logging.info('Warmup trainer finished')
 
