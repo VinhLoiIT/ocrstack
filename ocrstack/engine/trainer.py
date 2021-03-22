@@ -67,10 +67,12 @@ class Trainer(object):
         targets = targets.to(self.config.device)
 
         with torch.cuda.amp.autocast(enabled=self.config.use_amp), torch.no_grad():
-            outputs = self.model(batch)
-            metrics = self.model.compute_batch_metrics(batch, outputs)
+            predicts = self.model(batch)
 
-        self.model.update_metrics(self.state.get('metrics', {}), metrics)
+        labels = self.model.string_tf.decode_to_string(batch.text.tensor[:, 1:].argmax(-1), targets.lengths_tensor)
+
+        for metric in self.eval_metrics.values():
+            metric.update(predicts, labels)
 
     def visualize_step(self, batch):
         pass
@@ -194,7 +196,7 @@ class CheckpointSaver(object):
         if self.is_better(metric_value):
             self.best = metric_value
             if self._prev_name is not None:
-                self._prev_name.unlink(True)
+                self._prev_name.unlink()
             checkpoint_path = self.checkpoint_dir.joinpath(f'epoch={epoch}_{metric_value:.5f}.pth')
             torch.save(to_save, checkpoint_path)
             self._prev_name = checkpoint_path

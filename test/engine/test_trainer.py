@@ -1,3 +1,5 @@
+from ocrstack.data.vocab import Seq2SeqVocab
+from ocrstack.transforms.string import LabelDecoder
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,13 +17,13 @@ from torch.utils.data.dataloader import DataLoader
 
 
 class DummyModel(BaseModel):
-    def __init__(self):
+    def __init__(self, vocab):
         super(DummyModel, self).__init__()
         self.conv = ResNetAdapter('resnet18', False, 0)
         d_model = 512
         nhead = 8
         dim_feedforward = 128
-        vocab_size = 10
+        vocab_size = len(vocab)
 
         tf_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
         tf_encoder = nn.TransformerEncoder(tf_encoder_layer, 1)
@@ -37,6 +39,7 @@ class DummyModel(BaseModel):
         decoder = TransformerDecoderAdapter(text_embedding, text_classifier, sos_token_idx, eos_token_idx, tf_decoder)
 
         self.seq2seq = Seq2Seq(decoder, encoder)
+        self.string_tf = LabelDecoder(vocab)
 
     def forward_train(self, batch: CollateBatch):
         images = self.conv(batch.images.tensor)
@@ -54,9 +57,20 @@ class DummyModel(BaseModel):
         targets = targets.view(-1)
         return F.cross_entropy(outputs, targets)
 
+    def forward_eval(self, batch: CollateBatch):
+        images = self.conv(batch.images.tensor)
+        B, C, H, W = images.shape
+        images = images.reshape(B, C, H*W)
+        images = images.transpose(1, 2)
+        seq, lengths = self.seq2seq.decode(images, 5)
+        predicts = self.string_tf.decode_to_string(seq.argmax(-1), lengths)
+        return predicts
+
 
 def test_trainer_train():
-    model = DummyModel()
+    vocab = Seq2SeqVocab(list('12345678'))
+    vocab_size = len(vocab)
+    model = DummyModel(vocab)
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
         batch_size=2,
@@ -68,9 +82,13 @@ def test_trainer_train():
         num_iter_visualize=1,
     )
 
-    dataset = DummyDataset(10, 3, 64, 256, 5, 10)
+    dataset = DummyDataset(10, 3, 64, 256, 5, vocab_size)
+
     train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
                               collate_fn=CollateBatch.collate)
 
+    val_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
+                            collate_fn=CollateBatch.collate)
+
     trainer = Trainer(model, optimizer, config)
-    trainer.train(train_loader)
+    trainer.train(train_loader, val_loader)
