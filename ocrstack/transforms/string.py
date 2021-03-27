@@ -77,6 +77,8 @@ class CTCDecoder(object):
         '''
         Convert a Tensor to a list of token indexes if return_string is False, otherwise string.
         '''
+        if tensor.ndim == 3:
+            tensor = tensor.argmax(dim=-1)
         indexes = ctc_decode(tensor, self.vocab.BLANK_IDX)
         return indexes
 
