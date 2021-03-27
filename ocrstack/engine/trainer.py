@@ -45,9 +45,7 @@ class Trainer(object):
         self.state = {}
 
     def train_step(self, batch: CollateBatch):
-        inputs, targets = batch.images, batch.text
-        inputs = inputs.to(self.config.device)
-        targets = targets.to(self.config.device)
+        batch = batch.to(self.config.device)
         self.optimizer.zero_grad()
 
         with torch.cuda.amp.autocast(enabled=self.config.use_amp):

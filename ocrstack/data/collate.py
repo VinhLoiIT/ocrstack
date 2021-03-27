@@ -12,6 +12,9 @@ class CollateBatch(object):
     def __len__(self):
         return len(self.images.sizes)
 
+    def to(self, device):
+        return CollateBatch(self.images.to(device), self.text.to(device))
+
     @staticmethod
     def collate(batch: List[Dict[str, Any]]):
         batch.sort(key=lambda sample: len(sample['text']), reverse=True)
