@@ -5,7 +5,7 @@ import torch
 
 class CollateBatch(object):
 
-    def __init__(self, images, text):
+    def __init__(self, images: 'ImageList', text: 'TextList'):
         self.images = images
         self.text = text
 
