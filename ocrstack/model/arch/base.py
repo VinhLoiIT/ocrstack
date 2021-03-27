@@ -21,7 +21,7 @@ class BaseModel(nn.Module):
     def forward_eval(self, batch: CollateBatch):
         pass
 
-    def compute_batch_loss(self, batch, outputs):
+    def compute_batch_loss(self, batch: CollateBatch, outputs):
         '''
         Computing loss
         :param outputs: outputs return by `forward_train` method
@@ -29,7 +29,7 @@ class BaseModel(nn.Module):
         '''
         pass
 
-    def compute_batch_metrics(self, batch, outputs):
+    def compute_batch_metrics(self, batch: CollateBatch, outputs):
         '''
         Computing metrics
         :param outputs: outputs return by `forward_eval` method
