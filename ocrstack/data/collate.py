@@ -5,9 +5,10 @@ import torch
 
 class CollateBatch(object):
 
-    def __init__(self, images: 'ImageList', text: 'TextList'):
+    def __init__(self, images: 'ImageList', text: 'TextList', metadata: List[Dict]):
         self.images = images
         self.text = text
+        self.metadata = metadata
 
     def __len__(self):
         return len(self.images.sizes)
@@ -20,7 +21,8 @@ class CollateBatch(object):
         batch.sort(key=lambda sample: len(sample['text']), reverse=True)
         images = ImageList.from_tensors([x['image'] for x in batch])
         text = TextList.from_tensors([x['text'] for x in batch])
-        return CollateBatch(images, text)
+        metadata = [x.get('metadata', {}) for x in batch]
+        return CollateBatch(images, text, metadata)
 
 
 class ImageList(object):
