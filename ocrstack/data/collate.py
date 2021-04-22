@@ -14,7 +14,7 @@ class CollateBatch(object):
         return len(self.images.sizes)
 
     def to(self, device):
-        return CollateBatch(self.images.to(device), self.text.to(device))
+        return CollateBatch(self.images.to(device), self.text.to(device), self.metadata)
 
     @staticmethod
     def collate(batch: List[Dict[str, Any]]):
