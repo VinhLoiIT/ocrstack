@@ -67,6 +67,14 @@ class Vocab():
 
         return cls(list(alphabets))
 
+    @classmethod
+    def from_dataset(cls, dataset):
+        char_set = set()
+        for item in dataset:
+            raw_text = item.get('metadata', {}).get('rawText', '')
+            char_set = char_set.union(set(raw_text))
+        return cls(list(char_set))
+
 
 class CTCVocab(Vocab):
     def __init__(self,

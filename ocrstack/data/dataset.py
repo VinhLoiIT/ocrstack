@@ -1,13 +1,12 @@
+import logging
 import os
 from pathlib import Path
-from typing import List, Optional, Union, Callable
+from typing import Callable, List, Optional, Union
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset
 from PIL import Image
-import logging
-
+from torch.utils.data import Dataset
 
 __all__ = [
     'OCRDataset',
@@ -75,25 +74,33 @@ class OCRDataset(Dataset):
 
 
 class DummyDataset(Dataset):
-    def __init__(self, num_samples, image_channels, height, width, max_lengths, vocab_size, onehot: bool = True):
+    def __init__(self, num_samples, image_channels, height, width, max_lengths, vocab_size, seq2seq=False):
         super(DummyDataset, self).__init__()
         self.images = torch.rand(num_samples, image_channels, height, width)
-        self.texts = torch.randint(0, vocab_size, (num_samples, max_lengths))
-        if onehot:
-            self.onehot_texts = F.one_hot(self.texts, vocab_size)
+        if seq2seq:
+            self.texts = torch.randint(0, vocab_size, (num_samples, max_lengths + 2))
         else:
-            self.onehot_texts = None
+            self.texts = torch.randint(0, vocab_size, (num_samples, max_lengths))
+        self.onehot_texts = F.one_hot(self.texts, vocab_size)
+        self.space_idx = 0
+        self.vocab_size = vocab_size
+        self.seq2seq = seq2seq
 
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, index):
+        if self.seq2seq:
+            raw_text = ''.join([' ' if item.item() == self.space_idx else '0' for item in self.texts[index][1:-1]])
+        else:
+            raw_text = ''.join([' ' if item.item() == self.space_idx else '0' for item in self.texts[index]])
+        text = self.onehot_texts[index]
         return {
             'metadata': {
-                'imagePath': 'tempPath',
-                'textPath': 'textPath',
-                'rawText': 'dummyText',
+                'imagePath': f'imagePath_{index}',
+                'textPath': f'textPath_{index}',
+                'rawText': raw_text,
             },
             'image': self.images[index],
-            'text': self.onehot_texts[index] if self.onehot_texts is not None else self.texts[index],
+            'text': text,
         }

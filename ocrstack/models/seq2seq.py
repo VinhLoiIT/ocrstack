@@ -1,8 +1,8 @@
-from ocrstack.model.component.sequence_encoder import BaseEncoder
-from ocrstack.model.component.sequence_decoder import BaseDecoder
-from typing import Optional, Tuple, Any
+from typing import Any, Optional, Tuple
 
 import torch.nn as nn
+from ocrstack.opts.sequence_decoder import BaseDecoder
+from ocrstack.opts.sequence_encoder import BaseEncoder
 from torch import Tensor
 
 
@@ -26,10 +26,9 @@ class Seq2Seq(nn.Module):
         memory = src
         if self.encoder is not None:
             memory = self.encoder(src, src_key_padding_mask)
-        logits = self.decoder(memory, tgt, memory_key_padding_mask, tgt_key_padding_mask)
-
-        # loss = {}
-        # loss.update(self.output(logits, targets))
+        logits = self.decoder(memory, tgt,
+                              memory_key_padding_mask=memory_key_padding_mask,
+                              tgt_key_padding_mask=tgt_key_padding_mask)
 
         return logits
 

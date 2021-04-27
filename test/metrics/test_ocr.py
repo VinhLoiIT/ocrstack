@@ -1,28 +1,32 @@
-import unittest
-from ocrstack.metrics import CERMeter
+import numpy as np
+from ocrstack.metrics.ocr import compute_global_cer, compute_norm_cer
 
 
-class TestCER(unittest.TestCase):
-    def setUp(self):
-        self.metric = CERMeter()
+def test_compute_norm_cer():
+    cers = compute_norm_cer([['a', 'b', 'c']], [['c', 'b', 'c']])
+    assert np.array(cers) == np.array([1 / 3])
 
-    def test_1_sample_same_length(self):
-        self.metric.update([['a', 'b', 'c']], [['c', 'b', 'c']])
-        assert self.metric.compute() == (1 / 3)
+    cers = compute_norm_cer([['a', 'b', 'c']], [['c', 'b', 'c', 'e']])
+    assert (np.array(cers) == np.array([2 / 4])).all()
 
-    def test_1_sample_diff_length(self):
-        self.metric.update([['a', 'b', 'c']], [['c', 'b', 'c', 'e']])
-        assert self.metric.compute() == (2 / 4)
+    cers = compute_norm_cer([['a', 'b', 'c'], ['d', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
+    assert (np.array(cers) == np.array([1/3, 2/3])).all()
 
-    def test_2_sample_same_length(self):
-        self.metric.update([['a', 'b', 'c'], ['d', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
-        assert self.metric.compute() == ((1 + 2) / 6)
+    cers = compute_norm_cer([['a', 'b', 'c'], ['c', 'd', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
+    assert (np.array(cers) == np.array([1/3, 3/3])).all()
 
-    def test_2_sample_diff_length(self):
-        self.metric.update([['a', 'b', 'c'], ['c', 'd', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
-        assert self.metric.compute() == ((1 + 3) / 6)
 
-    def test_1_sample_update_2_times(self):
-        self.metric.update([['a', 'b', 'c']], [['c', 'b', 'c']])
-        self.metric.update([['a', 'b', 'c']], [['c', 'b', 'c']])
-        assert self.metric.compute() == ((1 + 1) / 6)
+def test_compute_global_cer():
+    def batch_cer(dist, num_ref):
+        return np.sum(dist) / np.sum(num_ref)
+    dist, num_ref = compute_global_cer([['a', 'b', 'c']], [['c', 'b', 'c']])
+    assert batch_cer(dist, num_ref) == 1 / 3
+
+    dist, num_ref = compute_global_cer([['a', 'b', 'c']], [['c', 'b', 'c', 'e']])
+    assert batch_cer(dist, num_ref) == 2 / 4
+
+    dist, num_ref = compute_global_cer([['a', 'b', 'c'], ['d', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
+    assert batch_cer(dist, num_ref) == (1 + 2) / 6
+
+    dist, num_ref = compute_global_cer([['a', 'b', 'c'], ['c', 'd', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
+    assert batch_cer(dist, num_ref) == (1 + 3) / 6

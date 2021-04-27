@@ -1,76 +1,27 @@
-from ocrstack.data.vocab import Seq2SeqVocab
-from ocrstack.transforms.string import LabelDecoder
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from ocrstack.config.trainer import TrainerConfig
-from ocrstack.data.collate import CollateBatch
+from ocrstack.data.collate import BatchCollator
 from ocrstack.data.dataset import DummyDataset
+from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab
+from ocrstack.engine.evaluator import Evaluator
 from ocrstack.engine.trainer import Trainer
-from ocrstack.model.arch.base import BaseModel
-from ocrstack.model.arch.seq2seq import Seq2Seq
-from ocrstack.model.component.conv_adapter import ResNetAdapter
-from ocrstack.model.component.sequence_decoder import TransformerDecoderAdapter
-from ocrstack.model.component.sequence_encoder import TransformerEncoderAdapter
+from ocrstack.loss import CrossEntropyLoss, CTCLoss
+from ocrstack.models import resnet18_lstm_ctc, resnet18_transformer
+from ocrstack.models.base import CTCTrainBridge, Seq2SeqTrainBridge
+from ocrstack.opts.string_decoder import CTCGreedyDecoder, Seq2SeqGreedyDecoder
+from ocrstack.transforms.image import BatchPadImages
+from ocrstack.transforms.string import BatchPadTexts
 from torch import optim
 from torch.utils.data.dataloader import DataLoader
 
 
-class DummyModel(BaseModel):
-    def __init__(self, vocab):
-        super(DummyModel, self).__init__()
-        self.conv = ResNetAdapter('resnet18', False, 0)
-        d_model = 512
-        nhead = 8
-        dim_feedforward = 128
-        vocab_size = len(vocab)
-
-        tf_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
-        tf_encoder = nn.TransformerEncoder(tf_encoder_layer, 1)
-        encoder = TransformerEncoderAdapter(tf_encoder)
-
-        tf_decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward)
-        tf_decoder = nn.TransformerDecoder(tf_decoder_layer, 1)
-        text_embedding = nn.Linear(vocab_size, d_model)
-        text_classifier = nn.Linear(d_model, vocab_size)
-
-        sos_token_idx = F.one_hot(torch.tensor([0], dtype=torch.long), vocab_size)
-        eos_token_idx = F.one_hot(torch.tensor([1], dtype=torch.long), vocab_size)
-        decoder = TransformerDecoderAdapter(text_embedding, text_classifier, sos_token_idx, eos_token_idx, tf_decoder)
-
-        self.seq2seq = Seq2Seq(decoder, encoder)
-        self.string_tf = LabelDecoder(vocab)
-
-    def forward_train(self, batch: CollateBatch):
-        images = self.conv(batch.images.tensor)
-        B, C, H, W = images.shape
-        images = images.reshape(B, C, H*W)
-        images = images.transpose(1, 2)
-        targets = batch.text.tensor[:, :-1].float()
-        seq = self.seq2seq(images, targets)
-        return seq
-
-    def compute_batch_loss(self, batch: CollateBatch, outputs):
-        B, T, E = outputs.shape
-        outputs = outputs.reshape(B * T, E)
-        targets = batch.text.tensor[:, 1:].argmax(-1)
-        targets = targets.view(-1)
-        return F.cross_entropy(outputs, targets)
-
-    def forward_eval(self, batch: CollateBatch):
-        images = self.conv(batch.images.tensor)
-        B, C, H, W = images.shape
-        images = images.reshape(B, C, H*W)
-        images = images.transpose(1, 2)
-        seq, lengths = self.seq2seq.decode(images, 5)
-        predicts = self.string_tf.decode_to_string(seq.argmax(-1), lengths)
-        return predicts
-
-
-def test_trainer_train():
-    vocab = Seq2SeqVocab(list('12345678'))
+def test_trainer_ctc():
+    vocab = CTCVocab(list('12345678'))
     vocab_size = len(vocab)
-    model = DummyModel(vocab)
+    model = resnet18_lstm_ctc(pretrained=False, vocab_size=vocab_size, hidden_size=128)
+    model = CTCTrainBridge(model, CTCGreedyDecoder(vocab))
+    criterion = CTCLoss(vocab)
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
         batch_size=2,
@@ -84,11 +35,58 @@ def test_trainer_train():
 
     dataset = DummyDataset(10, 3, 64, 256, 5, vocab_size)
 
+    batch_collator = BatchCollator(
+        BatchPadImages(0.),
+        BatchPadTexts(0.),
+    )
+
     train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
-                              collate_fn=CollateBatch.collate)
+                              collate_fn=batch_collator)
 
     val_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
-                            collate_fn=CollateBatch.collate)
+                            collate_fn=batch_collator)
 
-    trainer = Trainer(model, optimizer, config)
-    trainer.train(train_loader, val_loader)
+    evaluator = Evaluator(model, val_loader, config.device)
+    trainer = Trainer(model, criterion, optimizer, config, evaluator=evaluator)
+    trainer.train(train_loader)
+
+
+def test_trainer_seq2seq():
+    vocab = Seq2SeqVocab(list('12345678'))
+    vocab_size = len(vocab)
+
+    sos_onehot = F.one_hot(torch.tensor([vocab.SOS_IDX]), len(vocab)).float()
+    eos_onehot = F.one_hot(torch.tensor([vocab.EOS_IDX]), len(vocab)).float()
+
+    model = resnet18_transformer(True, len(vocab), d_model=128, nhead=8, num_layers=1,
+                                 sos_onehot=sos_onehot, eos_onehot=eos_onehot)
+    model = Seq2SeqTrainBridge(model, Seq2SeqGreedyDecoder(vocab), max_length=20)
+
+    criterion = CrossEntropyLoss()
+    optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
+    config = TrainerConfig(
+        batch_size=2,
+        lr=1e-4,
+        device='cpu',
+        iter_train=2,
+        iter_eval=1,
+        iter_visualize=1,
+        num_iter_visualize=1,
+    )
+
+    dataset = DummyDataset(10, 3, 64, 256, 5, vocab_size, seq2seq=True)
+
+    batch_collator = BatchCollator(
+        BatchPadImages(0.),
+        BatchPadTexts(0.),
+    )
+
+    train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
+                              collate_fn=batch_collator)
+
+    val_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
+                            collate_fn=batch_collator)
+
+    evaluator = Evaluator(model, val_loader, config.device)
+    trainer = Trainer(model, criterion, optimizer, config, evaluator=evaluator)
+    trainer.train(train_loader)

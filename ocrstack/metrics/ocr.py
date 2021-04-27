@@ -23,7 +23,7 @@ def compute_norm_cer(predicts, targets):
 
 
 def compute_global_cer(predicts, targets):
-    # type: (List[str], List[str]) -> List[float]
+    # type: (List[str], List[str]) -> Tuple[List[int], List[int]]
     dist = [ed.distance(list(pred), list(tgt)) for pred, tgt in zip(predicts, targets)]
     num_refs = [len(tgt) for tgt in targets]
     return dist, num_refs
@@ -37,7 +37,7 @@ def compute_norm_wer(predicts, targets):
 
 
 def compute_global_wer(predicts, targets):
-    # type: (List[str], List[str]) -> List[float]
+    # type: (List[str], List[str]) -> Tuple[List[int], List[int]]
     dist = [ed.distance(pred.split(' '), tgt.split(' ')) for pred, tgt in zip(predicts, targets)]
     num_refs = [len(tgt.split(' ')) for tgt in targets]
     return dist, num_refs

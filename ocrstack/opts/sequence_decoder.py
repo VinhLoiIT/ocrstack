@@ -1,8 +1,8 @@
-from typing import Optional, Tuple, Any
+from typing import Any, Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from torch import Tensor
 
 
@@ -84,7 +84,7 @@ class TransformerDecoderAdapter(BaseDecoder):
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         lengths = torch.ones(batch_size, dtype=torch.long).fill_(max_length)
         for t in range(max_length):
-            text = self.forward(memory, predicts)               # [B, T, V]
+            text = self.forward(memory, predicts, memory_key_padding_mask)               # [B, T, V]
             output = F.softmax(text[:, [-1]], dim=-1)                    # [B, 1, V]
             predicts = torch.cat([predicts, output], dim=1)     # [B, T + 1, V]
 
