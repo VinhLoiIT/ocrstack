@@ -11,7 +11,7 @@ class AverageMeter(object):
 
     def compute(self):
         if self._num_samples == 0:
-            return 0
+            return 0.
         return self._sum / self._num_samples
 
     def reset(self):
