@@ -1,12 +1,12 @@
-from typing import Callable, List, Mapping
+from typing import Callable, List, Mapping, Optional
 
 import torch
 import torch.nn.functional as F
 from ocrstack.core.typing import Tokens
-from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab, Vocab
-from torch import Tensor
+from ocrstack.data.vocab import Seq2SeqVocab, Vocab
 
-__all__ = ['LabelDecoder', 'Replace', 'CTCDecoder', 'TextToTensor']
+__all__ = ['LabelDecoder', 'Replace', 'TextToTensor', 'ToCharList',
+           'OneHotEncoding', 'AddSeq2SeqTokens', 'BatchPadTexts']
 
 
 class Replace(object):
@@ -69,36 +69,24 @@ class LabelDecoder(object):
         return samples
 
 
-class CTCDecoder(object):
-    def __init__(self, vocab: CTCVocab):
-        self.vocab = vocab
+class BatchPadTexts:
+    def __init__(self, pad_value, max_length=None):
+        # type: (torch.Tensor, Optional[int]) -> None
+        assert max_length is None or max_length > 0
+        self.max_length = max_length or 0
+        self.pad_value = pad_value
 
-    def decode_to_index(self, tensor: torch.Tensor) -> List[List[int]]:
-        '''
-        Convert a Tensor to a list of token indexes if return_string is False, otherwise string.
-        '''
-        if tensor.ndim == 3:
-            tensor = tensor.argmax(dim=-1)
-        indexes = ctc_decode(tensor, self.vocab.BLANK_IDX)
-        return indexes
+    def __call__(self, texts: List[torch.Tensor]):
+        assert len(texts) > 0
+        lengths: List[int] = [text.size(0) for text in texts]
+        max_length = self.max_length or max(*lengths, self.max_length)
 
-    def decode_to_tokens(self, tensor: torch.Tensor) -> List[List[str]]:
-        indexes = self.decode_to_index(tensor)
-        tokens = [list(map(self.vocab.int2char, sample)) for sample in indexes]
-        return tokens
+        if len(texts) == 1:
+            return texts[0].unsqueeze(0)
 
-    def decode_to_string(self, tensor: torch.Tensor, join_char: str = '') -> List[str]:
-        tokens_samples = self.decode_to_tokens(tensor)
-        samples = [join_char.join(tokens) for tokens in tokens_samples]
-        return samples
+        batch_shape = [len(texts), max_length] + list(texts[0].shape[1:])
+        batched_text = texts[0].new_full(size=batch_shape, fill_value=self.pad_value)
+        for i, t in enumerate(texts):
+            batched_text[i, :t.shape[0], ...].copy_(t)
 
-
-def ctc_decode(tensor: Tensor, blank_index: int) -> List[List[int]]:
-    results: List[List[int]] = []
-    for sample in tensor.cpu().tolist():
-        # remove duplications
-        sample = [sample[0]] + [c for i, c in enumerate(sample[1:]) if c != sample[i]]
-        # remove 'blank'
-        sample = list(filter(lambda i: i != blank_index, sample))
-        results.append(sample)
-    return results
+        return batched_text

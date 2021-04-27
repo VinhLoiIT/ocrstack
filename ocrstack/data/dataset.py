@@ -56,14 +56,17 @@ class OCRDataset(Dataset):
 
         text_path = image_path.with_suffix(f'.{self.text_file_suffix}')
         with open(text_path, 'rt', encoding=self.encoding) as f:
-            text = f.readline().rstrip()
+            raw_text = f.readline().rstrip()
 
         if self.text_transform is not None:
-            text = self.text_transform(text)
+            text = self.text_transform(raw_text)
 
         data = {
-            'imagePath': str(image_path),
-            'textPath': str(text_path),
+            'metadata': {
+                'imagePath': str(image_path),
+                'textPath': str(text_path),
+                'rawText': raw_text,
+            },
             'image': image,
             'text': text,
         }
@@ -86,8 +89,11 @@ class DummyDataset(Dataset):
 
     def __getitem__(self, index):
         return {
-            'imagePath': 'tempPath',
-            'textPath': 'textPath',
+            'metadata': {
+                'imagePath': 'tempPath',
+                'textPath': 'textPath',
+                'rawText': 'dummyText',
+            },
             'image': self.images[index],
             'text': self.onehot_texts[index] if self.onehot_texts is not None else self.texts[index],
         }
