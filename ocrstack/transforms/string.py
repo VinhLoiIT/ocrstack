@@ -2,6 +2,7 @@ from typing import Callable, List, Mapping, Optional
 
 import torch
 import torch.nn.functional as F
+from torch.types import Number
 from ocrstack.core.typing import Tokens
 from ocrstack.data.vocab import Seq2SeqVocab, Vocab
 
@@ -74,7 +75,7 @@ class BatchPadTexts:
         # type: (torch.Tensor, Optional[int]) -> None
         assert max_length is None or max_length > 0
         self.max_length = max_length or 0
-        self.pad_value = pad_value
+        self.pad_value = torch.as_tensor(pad_value)
 
     def __call__(self, texts: List[torch.Tensor]):
         assert len(texts) > 0
@@ -85,8 +86,9 @@ class BatchPadTexts:
             return texts[0].unsqueeze(0)
 
         batch_shape = [len(texts), max_length] + list(texts[0].shape[1:])
-        batched_text = texts[0].new_full(size=batch_shape, fill_value=self.pad_value)
+        batched_text = torch.empty(batch_shape)
         for i, t in enumerate(texts):
             batched_text[i, :t.shape[0], ...].copy_(t)
+            batched_text[i, t.shape[0]:, ...].copy_(self.pad_value)
 
         return batched_text
