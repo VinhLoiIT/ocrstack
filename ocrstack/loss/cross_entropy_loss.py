@@ -8,7 +8,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         super(CrossEntropyLoss, self).__init__(*args, **kwargs)
 
     def forward(self, batch: Batch, train_outputs):
-        targets = batch.text.argmax(dim=-1)                                                 # B, T
+        targets = batch.text.argmax(dim=-1)[:, 1:]                                          # B, T
         targets_lengths = batch.lengths                                                     # B, T
         logits = train_outputs
 
