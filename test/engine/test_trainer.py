@@ -58,9 +58,9 @@ def test_trainer_seq2seq():
     sos_onehot = F.one_hot(torch.tensor([vocab.SOS_IDX]), len(vocab)).float()
     eos_onehot = F.one_hot(torch.tensor([vocab.EOS_IDX]), len(vocab)).float()
 
-    model = resnet18_transformer(True, len(vocab), d_model=128, nhead=8, num_layers=1,
-                                 sos_onehot=sos_onehot, eos_onehot=eos_onehot)
-    model = Seq2SeqTrainBridge(model, Seq2SeqGreedyDecoder(vocab), max_length=20)
+    model = resnet18_transformer(True, len(vocab), d_model=128, nhead=8, num_layers=1)
+    model = Seq2SeqTrainBridge(model, Seq2SeqGreedyDecoder(vocab), max_length=20,
+                               sos_onehot=sos_onehot, eos_onehot=eos_onehot)
 
     criterion = CrossEntropyLoss()
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
