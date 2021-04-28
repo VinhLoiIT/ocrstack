@@ -2,8 +2,6 @@ from typing import Callable, List, Mapping, Optional
 
 import torch
 import torch.nn.functional as F
-from torch.types import Number
-from ocrstack.core.typing import Tokens
 from ocrstack.data.vocab import Seq2SeqVocab, Vocab
 
 __all__ = ['LabelDecoder', 'Replace', 'TextToTensor', 'ToCharList',
@@ -19,7 +17,7 @@ class Replace(object):
 
 
 class ToCharList(object):
-    def __call__(self, text: str) -> Tokens:
+    def __call__(self, text: str) -> List[str]:
         return list(text)
 
 
@@ -45,7 +43,7 @@ class AddSeq2SeqTokens(object):
         self.sos_token = vocab.SOS
         self.eos_token = vocab.EOS
 
-    def __call__(self, tokens: Tokens) -> Tokens:
+    def __call__(self, tokens: List[str]) -> List[str]:
         return [self.sos_token] + tokens + [self.eos_token]
 
 

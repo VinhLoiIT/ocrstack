@@ -4,7 +4,6 @@ from typing import List, Union
 
 import torch
 import torch.nn.functional as F
-from ocrstack.core.typing import Token, Tokens
 
 
 class VocabAdapter():
@@ -54,8 +53,8 @@ class Vocab():
     def __len__(self):
         return len(self.adapter)
 
-    def onehot(self, tokens: Union[Token, Tokens]) -> torch.Tensor:
-        if isinstance(tokens, Token):
+    def onehot(self, tokens: Union[str, List[str]]) -> torch.Tensor:
+        if isinstance(tokens, str):
             tokens = [tokens]
         token_idx = list(map(self.char2int, tokens))
         return F.one_hot(torch.tensor(token_idx), len(self))  # [T, V]
