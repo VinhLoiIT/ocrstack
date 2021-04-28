@@ -85,7 +85,7 @@ class Trainer(object):
                     logging.info(f'Iteration {self.num_iteration}: Loss {loss:.4f}')
                     loss_meter.reset()
 
-                if self.num_iteration % self.config.iter_visualize == 0:
+                if self.visualizer is not None and self.num_iteration % self.config.iter_visualize == 0:
                     self.model.eval()
                     logging.info('Visualizing training process')
                     self.visualizer.visualize()
