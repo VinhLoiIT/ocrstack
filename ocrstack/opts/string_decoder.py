@@ -36,6 +36,10 @@ class CTCBeamsearchDecoder(StringDecoder):
 
 class Seq2SeqGreedyDecoder(StringDecoder):
 
+    def __init__(self, vocab, keep_end: bool = True):
+        super().__init__(vocab)
+        self.keep_end = keep_end
+
     def forward(self, predicts, lengths):
         # type: (torch.Tensor, List[int]) -> Tuple[List[str], List[float]]
         '''
@@ -43,6 +47,8 @@ class Seq2SeqGreedyDecoder(StringDecoder):
         -------
         - predicts: (B, T, V)
         '''
+        if not self.keep_end:
+            lengths = lengths - 1
         return seq2seq_greedy_decoder(predicts, lengths, self.vocab)
 
 
