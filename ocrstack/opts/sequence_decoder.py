@@ -98,7 +98,7 @@ class TransformerDecoderAdapter(BaseDecoder):
             if end_flag.all():
                 break
 
-        return predicts, lengths
+        return predicts[:, 1:], lengths  # remove <sos>
 
 
 class AttentionLSTMDecoder(BaseDecoder):
