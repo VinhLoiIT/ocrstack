@@ -3,7 +3,6 @@ from typing import Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.modules.module import ModuleAttributeError
 
 from .base import BaseModel
 
@@ -14,14 +13,9 @@ class ConvRNN(BaseModel):
         super(ConvRNN, self).__init__()
         self.conv = conv
         self.rnn = rnn
-        try:
-            bidirectional = rnn.bidirectional
-            batch_first = rnn.batch_first
-            hidden_size = rnn.hidden_size
-        except ModuleAttributeError as e:
-            print('''If you use custom RNN (not `nn.GRU` nor `nn.LSTM`), please make sure that your implementation
-                     has 'batch_first', 'bidirectional', and 'hidden_size' attributes''')
-            raise e
+        bidirectional = rnn.bidirectional
+        batch_first = rnn.batch_first
+        hidden_size = rnn.hidden_size
         num_direction = 2 if bidirectional else 1
         self.batch_first = batch_first
         self.out = nn.Linear(num_direction * hidden_size, vocab_size)
