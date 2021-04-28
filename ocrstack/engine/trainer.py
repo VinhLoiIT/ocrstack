@@ -6,12 +6,14 @@ import torch
 import torch.optim as optim
 from ocrstack.config import TrainerConfig
 from ocrstack.data.collate import Batch
-from ocrstack.engine.checkpoint import CkptSaver
-from ocrstack.engine.evaluator import Evaluator
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.models.base import BaseModel
 from torch.nn.utils.clip_grad import clip_grad_value_
 from torch.utils.data.dataloader import DataLoader
+
+from .checkpoint import CkptSaver
+from .evaluator import Evaluator
+from .visualizer import Visualizer
 
 
 class Trainer(object):
@@ -27,6 +29,7 @@ class Trainer(object):
                  config: TrainerConfig,
                  lr_scheduler=None,
                  evaluator: Union[Evaluator, List[Evaluator]] = [],
+                 visualizer: Visualizer = None,
                  checkpoint_callback: Optional[CkptSaver] = None,
                  ):
         self.model = model
@@ -46,6 +49,7 @@ class Trainer(object):
 
         # self.checkpoint_saver = CkptSaver(Path(config.checkpoint_dir), exist_ok=True)
         self.checkpoint_callback = checkpoint_callback
+        self.visualizer = visualizer
 
     def train_step(self, batch: Batch):
         batch = batch.to(self.config.device)
@@ -58,9 +62,6 @@ class Trainer(object):
         self.grad_scaler.step(self.optimizer)
         self.grad_scaler.update()
         return loss.item()
-
-    def visualize_step(self, batch):
-        pass
 
     def train(self, train_loader: DataLoader):
         self.model.to(self.config.device)
@@ -87,13 +88,7 @@ class Trainer(object):
                 if self.num_iteration % self.config.iter_visualize == 0:
                     self.model.eval()
                     logging.info('Visualizing training process')
-                    with torch.cuda.amp.autocast(enabled=self.config.use_amp), torch.no_grad():
-                        for i, batch in enumerate(train_loader):
-                            self.visualize_step(batch)
-
-                            if (i + 1) % self.config.num_iter_visualize == 0:
-                                logging.info('Visualize done')
-                                break
+                    self.visualizer.visualize()
                     self.model.train()
 
                 train_metrics = {name: m.compute() for name, m in self.train_metrics.items()}
