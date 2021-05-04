@@ -4,8 +4,6 @@ from torch.nn.utils.rnn import pack_padded_sequence
 
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, *args, **kwargs):
-        super(CrossEntropyLoss, self).__init__(*args, **kwargs)
 
     def forward(self, batch: Batch, train_outputs):
         targets = batch.text.argmax(dim=-1)[:, 1:]                                          # B, T

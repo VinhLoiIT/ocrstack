@@ -21,7 +21,7 @@ def test_trainer_ctc():
     vocab_size = len(vocab)
     model = resnet18_lstm_ctc(pretrained=False, vocab_size=vocab_size, hidden_size=128)
     model = CTCTrainBridge(model, CTCGreedyDecoder(vocab))
-    criterion = CTCLoss(vocab)
+    criterion = CTCLoss(vocab.BLANK_IDX)
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
         batch_size=2,
