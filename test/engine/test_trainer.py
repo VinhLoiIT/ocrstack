@@ -1,5 +1,3 @@
-import torch
-import torch.nn.functional as F
 from ocrstack.config.trainer import TrainerConfig
 from ocrstack.data.collate import BatchCollator
 from ocrstack.data.dataset import DummyDataset
@@ -8,8 +6,6 @@ from ocrstack.engine.evaluator import Evaluator
 from ocrstack.engine.trainer import Trainer
 from ocrstack.loss import CrossEntropyLoss, CTCLoss
 from ocrstack.models import resnet18_lstm_ctc, resnet18_transformer
-from ocrstack.models.base import CTCTrainBridge, Seq2SeqTrainBridge
-from ocrstack.opts.string_decoder import CTCGreedyDecoder, Seq2SeqGreedyDecoder
 from ocrstack.transforms.image import BatchPadImages
 from ocrstack.transforms.string import BatchPadTexts
 from torch import optim
@@ -19,8 +15,7 @@ from torch.utils.data.dataloader import DataLoader
 def test_trainer_ctc():
     vocab = CTCVocab(list('12345678'))
     vocab_size = len(vocab)
-    model = resnet18_lstm_ctc(pretrained=False, vocab_size=vocab_size, hidden_size=128)
-    model = CTCTrainBridge(model, CTCGreedyDecoder(vocab))
+    model = resnet18_lstm_ctc(pretrained=False, vocab=vocab, hidden_size=128)
     criterion = CTCLoss(vocab.BLANK_IDX)
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
@@ -55,12 +50,7 @@ def test_trainer_seq2seq():
     vocab = Seq2SeqVocab(list('12345678'))
     vocab_size = len(vocab)
 
-    sos_onehot = F.one_hot(torch.tensor([vocab.SOS_IDX]), len(vocab)).float()
-    eos_onehot = F.one_hot(torch.tensor([vocab.EOS_IDX]), len(vocab)).float()
-
-    model = resnet18_transformer(True, len(vocab), d_model=128, nhead=8, num_layers=1)
-    model = Seq2SeqTrainBridge(model, Seq2SeqGreedyDecoder(vocab), max_length=20,
-                               sos_onehot=sos_onehot, eos_onehot=eos_onehot)
+    model = resnet18_transformer(False, vocab, d_model=128, nhead=8, num_layers=1, max_length=20)
 
     criterion = CrossEntropyLoss()
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)

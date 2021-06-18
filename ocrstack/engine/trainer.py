@@ -53,7 +53,7 @@ class Trainer(object):
 
     def train_step(self, batch: Batch):
         batch = batch.to(self.config.device)
-        outputs = self.model(batch)
+        outputs = self.model.train_batch(batch)
         loss = self.criterion(batch, outputs)
         self.optimizer.zero_grad()
         self.grad_scaler.scale(loss).backward()

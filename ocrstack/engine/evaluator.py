@@ -45,7 +45,7 @@ class Evaluator:
         batch: Batch
         for i, batch in enumerate(self.data_loader):
             batch = batch.to(self.device)
-            predicts = self.model(batch)
+            predicts = self.model.predict(batch)
             for metric in self.metrics.values():
                 metric.update(predicts, batch)
 

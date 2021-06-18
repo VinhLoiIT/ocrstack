@@ -1,3 +1,5 @@
+from ocrstack.opts.string_decoder import StringDecoder
+from ocrstack.data.collate import Batch
 from typing import Union
 
 import torch
@@ -8,8 +10,8 @@ from .base import BaseModel
 
 
 class ConvRNN(BaseModel):
-    def __init__(self, conv, rnn, vocab_size):
-        # type: (nn.Module, Union[nn.Module, nn.LSTM, nn.GRU], int) -> None
+    def __init__(self, conv, rnn, vocab_size, string_decode):
+        # type: (nn.Module, Union[nn.Module, nn.LSTM, nn.GRU], int, StringDecoder) -> None
         super(ConvRNN, self).__init__()
         self.conv = conv
         self.rnn = rnn
@@ -19,6 +21,7 @@ class ConvRNN(BaseModel):
         num_direction = 2 if bidirectional else 1
         self.batch_first = batch_first
         self.out = nn.Linear(num_direction * hidden_size, vocab_size)
+        self.string_decode = string_decode
 
     def forward(self, images: torch.Tensor):
         images = self.conv(images)                              # B, C, H, W
@@ -37,3 +40,10 @@ class ConvRNN(BaseModel):
             outputs = F.softmax(outputs, dim=-1)                # T, B, V
             outputs = outputs.transpose(0, 1)                   # B, T, V
             return outputs
+
+    def train_batch(self, batch: Batch):
+        return self.forward(batch.images)
+
+    def predict(self, batch: Batch):
+        outputs = self.forward(batch.images)
+        return self.string_decode(outputs)
