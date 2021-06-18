@@ -6,13 +6,28 @@
 Welcome to ocrstack's documentation!
 ====================================
 
+Getting Started
+
 .. toctree::
    :maxdepth: 1
-   :name: Modules
-   :caption: Modules
+
+   tutorials/custom_dataset
+   tutorials/crnn
+
+
+API Reference
+
+.. toctree::
+   :maxdepth: 1
 
    modules/engine
    modules/data
+   modules/logger
+   modules/loss
+   modules/metrics
+   modules/models
+   modules/opts
+   modules/transforms
 
 Indices and tables
 ==================
