@@ -9,6 +9,7 @@ from ocrstack.opts.sequence_decoder import BaseDecoder
 from ocrstack.opts.sequence_encoder import BaseEncoder
 from ocrstack.opts.string_decoder import StringDecoder
 from torch import Tensor
+from torch.nn.utils.rnn import pack_padded_sequence
 
 from .base import BaseModel
 
@@ -44,32 +45,21 @@ class ConvSeq2Seq(BaseModel):
         self.string_decode = string_decode
 
     def predict(self, batch: Batch):
-        images: Tensor = self.backbone(batch.images)            # B, C, H, W
-
-        if self.conv_embed:
-            images = self.conv_embed(images)                    # B, E, H, W
-
-        B, E, H, W = images.shape
-        images = images.reshape(B, E, H * W)                    # B, E, H * W
-        images = images.transpose(-2, -1)                       # B, S = H * W, E
-
-        # if image_padding_mask is not None:
-        #     image_padding_mask = image_padding_mask.reshape(B, H * W)
-        image_padding_mask = None  # TODO: for now
-
-        if self.encoder is not None:
-            images = self.encoder(images, image_padding_mask)
-
-        predicts, lengths = self.decoder.decode(images, self.max_length, self.sos_onehot,
-                                                self.eos_onehot, image_padding_mask)
+        predicts, lengths = self.forward(batch.images)
         chars, probs = self.string_decode(predicts, lengths)
         return chars, probs
 
     def train_batch(self, batch: Batch):
-        logits = self.forward(batch.images, batch.text[:, :-1].float(), batch.lengths + 1)
+        logits = self.forward(batch.images, batch.text, batch.lengths + 2)
         return logits
 
-    def forward(self, images, text, lengths, image_padding_mask=None):
+    def compute_loss(self, logits, targets, lengths):
+        packed_predicts = pack_padded_sequence(logits, lengths, batch_first=True)[0]
+        packed_targets = pack_padded_sequence(targets, lengths, batch_first=True)[0]
+        loss = F.cross_entropy(packed_predicts, packed_targets)
+        return loss
+
+    def forward(self, images, text=None, lengths=None, image_padding_mask=None):
         # type: (Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]) -> Tensor
         images = self.backbone(images)                              # B, C, H, W
 
@@ -86,11 +76,17 @@ class ConvSeq2Seq(BaseModel):
         if self.encoder is not None:
             images = self.encoder(images, image_padding_mask)
 
-        text_padding_mask = _generate_padding_mask_from_lengths(lengths).to(images.device)      # B, S
-        logits = self.decoder(images, text,
-                              memory_key_padding_mask=image_padding_mask,
-                              tgt_key_padding_mask=text_padding_mask)
-        return logits
+        if self.training:
+            text_padding_mask = _generate_padding_mask_from_lengths(lengths - 1).to(images.device)      # B, S
+            logits = self.decoder(images, text[:, :-1].float(),
+                                  memory_key_padding_mask=image_padding_mask,
+                                  tgt_key_padding_mask=text_padding_mask)
+            loss = self.compute_loss(logits, text.argmax(dim=-1)[:, 1:], lengths - 1)
+            return loss
+        else:
+            predicts, lengths = self.decoder.decode(images, self.max_length, self.sos_onehot,
+                                                    self.eos_onehot, image_padding_mask)
+            return predicts, lengths
 
 
 def _generate_padding_mask_from_lengths(lengths: torch.Tensor) -> torch.Tensor:

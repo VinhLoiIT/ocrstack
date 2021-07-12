@@ -11,7 +11,7 @@ def resnet18_lstm_ctc(pretrained: bool, vocab, **lstm_kwargs):
     features, input_size = resnet_feature('resnet18', pretrained)
     lstm = nn.LSTM(input_size=input_size, **lstm_kwargs)
     vocab_size = len(vocab)
-    return ConvRNN(features, lstm, vocab_size, CTCGreedyDecoder(vocab))
+    return ConvRNN(features, lstm, vocab_size, vocab.BLANK_IDX, CTCGreedyDecoder(vocab))
 
 
 def resnet18_transformer(pretrained: bool, vocab, d_model, nhead, num_layers, max_length):

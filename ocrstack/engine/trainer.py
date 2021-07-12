@@ -24,7 +24,6 @@ class Trainer(object):
 
     def __init__(self,
                  model: BaseModel,
-                 criterion,
                  optimizer: optim.Optimizer,
                  config: TrainerConfig,
                  lr_scheduler=None,
@@ -33,7 +32,6 @@ class Trainer(object):
                  checkpoint_callback: Optional[CkptSaver] = None,
                  ):
         self.model = model
-        self.criterion = criterion
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.config = config
@@ -53,8 +51,7 @@ class Trainer(object):
 
     def train_step(self, batch: Batch):
         batch = batch.to(self.config.device)
-        outputs = self.model.train_batch(batch)
-        loss = self.criterion(batch, outputs)
+        loss = self.model.train_batch(batch)
         self.optimizer.zero_grad()
         self.grad_scaler.scale(loss).backward()
         self.grad_scaler.unscale_(self.optimizer)

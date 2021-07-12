@@ -6,7 +6,6 @@ from ocrstack.data.dataset import DummyDataset
 from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab
 from ocrstack.engine.evaluator import Evaluator
 from ocrstack.engine.trainer import Trainer
-from ocrstack.loss import CrossEntropyLoss, CTCLoss
 from ocrstack.models import resnet18_lstm_ctc, resnet18_transformer
 from ocrstack.transforms.image import BatchPadImages
 from ocrstack.transforms.string import BatchPadTexts
@@ -37,7 +36,6 @@ def test_trainer_ctc():
     vocab = CTCVocab(list('12345678'))
     vocab_size = len(vocab)
     model = resnet18_lstm_ctc(pretrained=False, vocab=vocab, hidden_size=128)
-    criterion = CTCLoss(vocab.BLANK_IDX)
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
         batch_size=2,
@@ -63,7 +61,7 @@ def test_trainer_ctc():
                             collate_fn=batch_collator)
 
     evaluator = Evaluator(model, val_loader, config.device)
-    trainer = Trainer(model, criterion, optimizer, config, evaluator=evaluator)
+    trainer = Trainer(model, optimizer, config, evaluator=evaluator)
     trainer.train(train_loader)
 
 
@@ -73,7 +71,6 @@ def test_trainer_seq2seq():
 
     model = resnet18_transformer(False, vocab, d_model=128, nhead=8, num_layers=1, max_length=20)
 
-    criterion = CrossEntropyLoss()
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
         batch_size=2,
@@ -99,5 +96,5 @@ def test_trainer_seq2seq():
                             collate_fn=batch_collator)
 
     evaluator = Evaluator(model, val_loader, config.device)
-    trainer = Trainer(model, criterion, optimizer, config, evaluator=evaluator)
+    trainer = Trainer(model, optimizer, config, evaluator=evaluator)
     trainer.train(train_loader)
