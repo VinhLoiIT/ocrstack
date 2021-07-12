@@ -95,5 +95,5 @@ class ConvSeq2Seq(BaseModel):
 
 def _generate_padding_mask_from_lengths(lengths: torch.Tensor) -> torch.Tensor:
     B, S = len(lengths), lengths.max()
-    padding_mask = torch.arange(0, S).expand(B, S) >= lengths.unsqueeze(-1)
+    padding_mask = torch.arange(0, S, device=lengths.device).expand(B, S) >= lengths.unsqueeze(-1)
     return padding_mask
