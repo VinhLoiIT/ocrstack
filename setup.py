@@ -11,5 +11,6 @@ setuptools.setup(
         'editdistance',
         'pillow>=7',
         'pyyaml>=5.4.1',
+        'torchinfo>=1.5',
     ],
 )

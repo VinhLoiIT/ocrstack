@@ -1,3 +1,5 @@
+import torch
+import torchinfo
 from ocrstack.config.trainer import TrainerConfig
 from ocrstack.data.collate import BatchCollator
 from ocrstack.data.dataset import DummyDataset
@@ -10,6 +12,25 @@ from ocrstack.transforms.image import BatchPadImages
 from ocrstack.transforms.string import BatchPadTexts
 from torch import optim
 from torch.utils.data.dataloader import DataLoader
+
+
+def test_log_info():
+    vocab = CTCVocab(list('12345678'))
+    model = resnet18_lstm_ctc(pretrained=False, vocab=vocab, hidden_size=128)
+    torchinfo.summary(model, input_size=[
+        [1, 3, 64, 256],
+    ])
+
+    vocab = Seq2SeqVocab(list('12345678'))
+    model = resnet18_transformer(False, vocab, d_model=128, nhead=8, num_layers=2, max_length=20)
+    torchinfo.summary(model,
+                      col_names=('input_size', 'output_size', 'num_params'),
+                      row_settings=('depth', 'var_names'),
+                      input_data=[
+                          torch.rand([1, 3, 64, 256]),
+                          torch.rand([1, 5, 100]),
+                          torch.tensor([5], dtype=torch.int32),
+                      ])
 
 
 def test_trainer_ctc():
