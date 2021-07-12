@@ -29,7 +29,7 @@ class Visualizer:
         batch: Batch
         for i, batch in enumerate(self.data_loader):
             batch = batch.to(self.device)
-            model_outputs = self.model(batch)
+            model_outputs = self.model.predict(batch)
             for writer in self.writers:
                 writer.visualize(batch, model_outputs)
             if (i + 1) >= self.num_iter_visualize:
