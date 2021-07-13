@@ -1,3 +1,4 @@
+import pytest
 import torch
 import torchinfo
 from ocrstack.config.trainer import TrainerConfig
@@ -32,7 +33,7 @@ def test_log_info():
                       ])
 
 
-def test_trainer_ctc():
+def trainer_ctc(device):
     vocab = CTCVocab(list('12345678'))
     vocab_size = len(vocab)
     model = resnet18_lstm_ctc(pretrained=False, vocab=vocab, hidden_size=128)
@@ -40,7 +41,7 @@ def test_trainer_ctc():
     config = TrainerConfig(
         batch_size=2,
         lr=1e-4,
-        device='cpu',
+        device=device,
         iter_train=2,
         iter_eval=1,
         iter_visualize=1,
@@ -65,7 +66,7 @@ def test_trainer_ctc():
     trainer.train(train_loader)
 
 
-def test_trainer_seq2seq():
+def trainer_seq2seq(device):
     vocab = Seq2SeqVocab(list('12345678'))
     vocab_size = len(vocab)
 
@@ -75,7 +76,7 @@ def test_trainer_seq2seq():
     config = TrainerConfig(
         batch_size=2,
         lr=1e-4,
-        device='cpu',
+        device=device,
         iter_train=2,
         iter_eval=1,
         iter_visualize=1,
@@ -98,3 +99,21 @@ def test_trainer_seq2seq():
     evaluator = Evaluator(model, val_loader, config.device)
     trainer = Trainer(model, optimizer, config, evaluator=evaluator)
     trainer.train(train_loader)
+
+
+def test_trainer_ctc_cpu():
+    trainer_ctc('cpu')
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='cuda is not available')
+def test_trainer_ctc_gpu():
+    trainer_ctc('cuda')
+
+
+def test_trainer_seq2seq_cpu():
+    trainer_seq2seq('cpu')
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='cuda is not available')
+def test_trainer_seq2seq_gpu():
+    trainer_seq2seq('cuda')
