@@ -18,7 +18,7 @@ class Batch:
 
     def to(self, device):
         return Batch(self.images.to(device), self.text.to(device),
-                     self.lengths.to(device), self.text_str, self.metadata)
+                     self.lengths, self.text_str, self.metadata)
 
 
 class BatchCollator:
