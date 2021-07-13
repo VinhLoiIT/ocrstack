@@ -1,123 +1,119 @@
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
+
+
+def attention(scores: Tensor,
+              values: Tensor,
+              q_padding_mask: Optional[Tensor] = None,
+              k_padding_mask: Optional[Tensor] = None,
+              attn_mask: Optional[Tensor] = None,
+              out_weights: bool = False,
+              ) -> Tuple[Tensor, Optional[Tensor]]:
+
+    if k_padding_mask is not None:
+        k_padding_mask = k_padding_mask.unsqueeze(-2)       # [B, 1, S]
+        scores = scores.masked_fill(k_padding_mask, float('-inf'))  # [B, T, S]
+
+    if attn_mask is not None:
+        scores = scores.masked_fill(~attn_mask, float('-inf'))
+
+    weights = F.softmax(scores, dim=-1)
+
+    if q_padding_mask is not None:
+        q_padding_mask = q_padding_mask.unsqueeze(-1)       # [B, T, 1]
+        weights = weights.masked_fill(q_padding_mask, 0.0)  # [B, T, S]
+
+    values = weights.bmm(values)
+    if out_weights:
+        return values, weights
+    else:
+        return values, None
+
+
+def additive_score(queries: Tensor,
+                   keys: Tensor,
+                   W_q: Tensor,
+                   W_k: Tensor,
+                   v_a: Tensor,
+                   bias_q: Optional[Tensor] = None,
+                   bias_k: Optional[Tensor] = None,
+                   bias_a: Optional[Tensor] = None,
+                   ) -> Tensor:
+    '''
+    Input:
+    - queries: [B, T, A]
+    - keys: [B, S, A]
+    - attn_mask: [B, T, S] - BoolTensor, value True for where T can attention at S
+    Output:
+    - score: [B, T, S]
+    '''
+    keys = F.linear(keys, W_k, bias_k)          # [B, S, A]
+    queries = F.linear(queries, W_q, bias_q)    # [B, T, A]
+
+    keys = keys.unsqueeze(1)                    # [B, 1, S, A]
+    queries = queries.unsqueeze(2)              # [B, T, 1, A]
+
+    score = F.linear(torch.tanh(queries + keys), v_a, bias_a)     # [B, T, S, 1]
+    score = score.squeeze(-1)                                     # [B, T, S]
+    return score
+
+
+def dot_product_score(queries: Tensor, keys: Tensor, scaled: bool = False):
+    '''
+    Input:
+    - queries: [B, T, A]
+    - keys: [B, S, A]
+    Output:
+    - score: [B, T, S]
+    '''
+    # [B,T,A] x [B,A,S] = [B,T,S]
+    if scaled:
+        attn_dim = queries.size(-1)
+        queries = queries / (attn_dim**0.5)
+    score = queries.bmm(keys.transpose(1, 2))       # [B,T,S]
+    return score
 
 
 class Attention(nn.Module):
-    def __init__(self, attn_size):
-        super(Attention, self).__init__()
-        self.attn_size = attn_size
 
-    def score(self, queries, keys):
+    def compute_scores(self, queries, keys):
         raise NotImplementedError()
 
-    def forward(self, queries, keys, values, attn_mask=None, output_weights=False):
-        '''
-        Input:
-        :param queries: [B, T, A]
-        :param keys: [B, S, A]
-        :param values: [B, S, A]
-        :param attn_mask: [B,T,S]
-        Output:
-        - values: [B, T, C]
-        - weights: [B, T, S] if output_weights = True else None
-        '''
-        weights = self.score(queries, keys)  # [B,T,S]
-        if attn_mask is not None:
-            if attn_mask.ndim == 2:
-                attn_mask = attn_mask.unsqueeze(0)
-            weights += attn_mask
-        weights = F.softmax(weights, dim=-1)
-        values = weights.bmm(values)  # [B, T, A]
-        if output_weights:
-            return values, weights
-        else:
-            return values, None
+    def forward(self,
+                queries,
+                keys,
+                values,
+                q_padding_mask: Optional[Tensor] = None,
+                k_padding_mask: Optional[Tensor] = None,
+                attn_mask: Optional[Tensor] = None,
+                out_weights: bool = False,
+                ) -> Tuple[Tensor, Optional[Tensor]]:
+        scores = self.compute_scores(queries, keys)
+        return attention(scores, values, q_padding_mask, k_padding_mask, attn_mask, out_weights)
+
+
+class DotProductAttention(Attention):
+    def __init__(self, scaled: bool = False):
+        super().__init__()
+        self.scaled = scaled
+
+    def compute_scores(self, queries, keys):
+        return dot_product_score(queries, keys, self.scaled)
 
 
 class AdditiveAttention(Attention):
-    def __init__(self, attn_size):
-        super().__init__(attn_size)
-        self.Wa = nn.Linear(attn_size, attn_size)
-        self.Ua = nn.Linear(attn_size, attn_size)
-        self.va = nn.Linear(attn_size, 1)
-
-    def score(self, queries, keys):
-        '''
-        Input:
-        - queries: [B, T, A]
-        - keys: [B, S, A]
-        - attn_mask: [B, T, S] - BoolTensor, value True for where T can attention at S
-        Output:
-        - weights: [B, T, S]
-        '''
-        keys = self.Wa(keys)  # [B,S,A]
-        queries = self.Ua(queries)  # [B,T,A]
-
-        keys = keys.unsqueeze(1)  # [B,1,S,A]
-        queries = queries.unsqueeze(2)  # [B,T,1,A]
-
-        weights = self.va(torch.tanh(queries + keys))  # [B,T,S,1]
-        weights = weights.squeeze(-1)  # [B,T,S]
-        return weights
-
-
-class ScaleDotProductAttention(Attention):
-    def __init__(self, attn_size):
-        super().__init__(attn_size)
-
-    def score(self, queries, keys):
-        '''
-        Input:
-        - queries: [B, T, A]
-        - keys: [B, S, A]
-        Output:
-        - weights: [B, T, S]
-        '''
-        attn_dim = queries.size(-1)
-        # [B,T,A] x [B,A,S] = [B,T,S]
-        matmul = queries.bmm(keys.transpose(1, 2))
-        scaled = matmul / (attn_dim**0.5)  # [B,T,S]
-
-        return scaled
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self, attn, nhead):
+    def __init__(self, attn_size: int, bias_q: bool = True, bias_k: bool = True, bias_v: bool = True):
         super().__init__()
-        self.head_size = attn.attn_size
-        self.nhead = nhead
-        self.attn_size = self.nhead * self.head_size
+        self.q_proj = nn.Linear(attn_size, attn_size, bias=bias_q)
+        self.k_proj = nn.Linear(attn_size, attn_size, bias=bias_k)
+        self.qk_proj = nn.Linear(attn_size, 1, bias=bias_v)
 
-        self.heads = nn.ModuleList([attn for _ in range(nhead)])
-        self.q_proj = nn.ModuleList([nn.Linear(self.attn_size, self.head_size) for _ in range(nhead)])
-        self.k_proj = nn.ModuleList([nn.Linear(self.attn_size, self.head_size) for _ in range(nhead)])
-        self.v_proj = nn.ModuleList([nn.Linear(self.attn_size, self.head_size) for _ in range(nhead)])
-        self.o_proj = nn.Linear(self.attn_size, self.attn_size)
+    def compute_scores(self, queries, keys):
+        return additive_score(queries, keys, self.q_proj.weight, self.k_proj.weight,
+                              self.qk_proj.weight, self.q_proj.bias, self.k_proj.bias, self.qk_proj.bias)
 
-    def forward(self, queries, keys, values, attn_mask=None, output_weights=False):
-        '''
-        Input:
-        :param queries: [B, T, A]
-        :param keys: [B, S, A]
-        Output:
-        - values: [B, T, A]
-        - weights: [nhead, B, T, S]
-        '''
-        q_projected = [q_proj(queries) for q_proj in self.q_proj]
-        k_projected = [k_proj(keys) for k_proj in self.k_proj]
-        v_projected = [v_proj(values) for v_proj in self.v_proj]
-
-        head_outputs = [head(q, k, v, attn_mask, output_weights)
-                        for head, q, k, v in zip(self.heads, q_projected, k_projected, v_projected)]
-        values, weights = list(zip(*head_outputs))
-        # values (list): nhead * [B,T,head_attn_size]
-        # weights (list): nhead * [B,T,S]
-
-        values = torch.cat(values, -1)  # [B,T,A]
-        values = self.o_proj(values)  # [B,T,A]
-        if output_weights:
-            weights = torch.stack(weights, dim=0)  # [nhead,B,T,S]
-            return values, weights
-        else:
-            return values, None
+# TODO: Support Multihead Attention

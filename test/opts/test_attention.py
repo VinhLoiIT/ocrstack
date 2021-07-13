@@ -1,52 +1,19 @@
-# import torch
-# from ocrstack.opts.attention import AdditiveAttention, MultiHeadAttention, ScaleDotProductAttention
+import torch
+from ocrstack.opts.attention import attention
 
 
-# def test_additive_attention():
-#     B, T, E = 2, 5, 128
-#     S = 10
-#     attention = AdditiveAttention(128)
-#     queries = torch.rand(B, T, E)
-#     keys = torch.rand(B, S, E)
-#     values = torch.rand(B, S, E)
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=False)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights is None
+def test_attention():
+    torch.manual_seed(0)
+    scores = torch.rand(2, 3, 4)    # [B, T, S]
+    values = torch.rand(2, 4, 5)    # [B, S, E]
 
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=True)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights.shape == torch.Size([B, T, S])
+    q_padding_mask = torch.tensor([[0, 0, 1], [0, 1, 1]], dtype=torch.bool)
+    assert q_padding_mask.shape == torch.Size([2, 3])
 
-#     attention = MultiHeadAttention(attention, 2)
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=False)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights is None
+    k_padding_mask = torch.tensor([[0, 0, 0, 1], [0, 0, 1, 1]], dtype=torch.bool)
+    assert k_padding_mask.shape == torch.Size([2, 4])
 
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=True)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights.shape == torch.Size([B, T, S])
+    padding_mask = torch.bitwise_or(q_padding_mask.unsqueeze(-1), k_padding_mask.unsqueeze(-2))
 
-
-# def test_scale_dot_product_attention():
-#     B, T, E = 2, 5, 128
-#     S = 10
-#     attention = ScaleDotProductAttention(128)
-#     queries = torch.rand(B, T, E)
-#     keys = torch.rand(B, S, E)
-#     values = torch.rand(B, S, E)
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=False)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights is None
-
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=True)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights.shape == torch.Size([B, T, S])
-
-#     attention = MultiHeadAttention(attention, 2)
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=False)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights is None
-
-#     outputs, weights = attention.forward(queries, keys, values, output_weights=True)
-#     assert outputs.shape == torch.Size([B, T, E])
-#     assert weights.shape == torch.Size([B, T, S])
+    values, weights = attention(scores, values, q_padding_mask, k_padding_mask, out_weights=True)
+    assert (weights.masked_select(padding_mask) == 0).all()

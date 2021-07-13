@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ocrstack.opts.attention import ScaleDotProductAttention
+from ocrstack.opts.attention import DotProductAttention
 from ocrstack.opts.sequence_decoder import (AttentionLSTMDecoder,
                                             TransformerDecoderAdapter)
 
@@ -66,7 +66,6 @@ def test_transformer_decoder_adapter_decode():
 def test_attention_lstm_decoder_forward():
     batch_size = 2
     vocab_size = 10
-    attn_size = 10
     hidden_size = 20
     tgt_length = 5
     src_length = 4
@@ -75,7 +74,7 @@ def test_attention_lstm_decoder_forward():
         text_embedding=nn.Linear(vocab_size, hidden_size),
         text_classifier=nn.Linear(hidden_size, vocab_size),
         lstm=nn.LSTMCell(context_size, hidden_size),
-        attention=ScaleDotProductAttention(attn_size),
+        attention=DotProductAttention(scaled=True),
     )
 
     memory = torch.rand(batch_size, src_length, hidden_size)
