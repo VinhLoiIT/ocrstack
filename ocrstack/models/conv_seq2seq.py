@@ -46,7 +46,7 @@ class ConvSeq2Seq(BaseModel):
 
     def predict(self, batch: Batch):
         predicts, lengths = self.forward(batch.images)
-        chars, probs = self.string_decode(predicts, lengths)
+        chars, probs = self.string_decode(predicts, lengths - 1)
         return chars, probs
 
     def train_batch(self, batch: Batch):
