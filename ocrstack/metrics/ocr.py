@@ -65,7 +65,7 @@ class CERMeter(AverageMeter):
         - targets: List of target characters
         '''
         predicted_strings = predicts[0]
-        target_strings = [y['rawText'] for y in batch.metadata]
+        target_strings = batch.text_str
         if self.norm:
             cers = compute_norm_cer(predicted_strings, target_strings)
             self.add(sum(cers), len(cers))
@@ -95,7 +95,7 @@ class WERMeter(AverageMeter):
         - n_references: List of the number of characters of targets
         '''
         predicted_strings = predicts[0]
-        target_strings = [y['rawText'] for y in batch.metadata]
+        target_strings = batch.text_str
         if self.norm:
             wers = compute_norm_wer(predicted_strings, target_strings)
             self.add(sum(wers), len(wers))
@@ -118,6 +118,6 @@ class ACCMeter(AverageMeter):
         - targets: List of target characters
         '''
         predicted_strings = predicts[0]
-        target_strings = [y['rawText'] for y in batch.metadata]
+        target_strings = batch.text_str
         accs = compute_acc(predicted_strings, target_strings)
         self.add(sum(accs), len(accs))

@@ -70,7 +70,7 @@ class Vocab():
     def from_dataset(cls, dataset):
         char_set = set()
         for item in dataset:
-            raw_text = item.get('metadata', {}).get('rawText', '')
+            raw_text = item.get('text_str', '')
             char_set = char_set.union(set(raw_text))
         return cls(list(char_set))
 

@@ -67,10 +67,10 @@ class OCRDataset(Dataset):
             'metadata': {
                 'imagePath': str(image_path),
                 'textPath': str(text_path),
-                'rawText': raw_text,
             },
             'image': image,
             'text': text,
+            'text_str': raw_text,
         }
 
         return data
@@ -112,10 +112,10 @@ class CSVDataset(Dataset):
             'metadata': {
                 'index': idx,
                 'imagePath': str(image_path),
-                'rawText': raw_text,
             },
             'image': image,
             'text': text,
+            'text_str': raw_text,
         }
 
         return data
@@ -152,8 +152,8 @@ class DummyDataset(Dataset):
             'metadata': {
                 'imagePath': f'imagePath_{index}',
                 'textPath': f'textPath_{index}',
-                'rawText': raw_text,
             },
             'image': self.images[index],
             'text': text,
+            'text_str': raw_text,
         }

@@ -5,10 +5,11 @@ import torch
 
 class Batch:
 
-    def __init__(self, images, text, lengths, metadata):
-        # type: (torch.Tensor, torch.Tensor, torch.Tensor, List[Dict]) -> None
+    def __init__(self, images, text, lengths, text_str, metadata):
+        # type: (torch.Tensor, torch.Tensor, torch.Tensor, List[str], List[Dict]) -> None
         self.images = images
         self.text = text
+        self.text_str = text_str
         self.metadata = metadata
         self.lengths = lengths
 
@@ -16,7 +17,8 @@ class Batch:
         return len(self.images)
 
     def to(self, device):
-        return Batch(self.images.to(device), self.text.to(device), self.lengths.to(device), self.metadata)
+        return Batch(self.images.to(device), self.text.to(device),
+                     self.lengths.to(device), self.text_str, self.metadata)
 
 
 class BatchCollator:
@@ -27,8 +29,9 @@ class BatchCollator:
 
     def __call__(self, batch: List[Dict[str, Any]]):
         batch.sort(key=lambda sample: len(sample['text']), reverse=True)
+        text_str = [sample['text_str'] for sample in batch]
         lengths = torch.tensor([len(sample['text']) for sample in batch])
         images = self.batch_image_transform([x['image'] for x in batch])
         text = self.batch_text_transform([x['text'] for x in batch])
         metadata = [x.get('metadata', {}) for x in batch]
-        return Batch(images, text, lengths, metadata)
+        return Batch(images, text, lengths, text_str, metadata)
