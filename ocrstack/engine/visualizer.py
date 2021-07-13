@@ -62,12 +62,12 @@ class ConsoleWriter(BaseWriter):
 
     def visualize(self, batch: Batch, model_outputs):
         predicts, _ = model_outputs
-        for metadata, predict in zip(batch.metadata, predicts):
+        for metadata, text_str, predict in zip(batch.metadata, batch.text_str, predicts):
             s = ''
             if self.col_filename:
                 s += f'File: {metadata[self.col_filename]}, '
             if self.col_text:
-                s += f'Text: {metadata[self.col_text]}, '
+                s += f'Text: {text_str}, '
             s += f'Predict: {predict}'
             print(s)
 
