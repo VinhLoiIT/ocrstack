@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 from ocrstack.data.collate import Batch
@@ -53,9 +53,10 @@ class BaseWriter:
 
 class ConsoleWriter(BaseWriter):
 
-    def __init__(self, col_filename: str = None, col_text: str = None):
-        self.col_filename = col_filename
-        self.col_text = col_text
+    def __init__(self, meta_fields: Union[str, List[str]] = []):
+        if isinstance(meta_fields, str):
+            meta_fields = [meta_fields]
+        self.meta_fields = meta_fields
 
     def start(self):
         print('-' * 120)
@@ -64,10 +65,9 @@ class ConsoleWriter(BaseWriter):
         predicts, _ = model_outputs
         for metadata, text_str, predict in zip(batch.metadata, batch.text_str, predicts):
             s = ''
-            if self.col_filename:
-                s += f'File: {metadata[self.col_filename]}, '
-            if self.col_text:
-                s += f'Text: {text_str}, '
+            for field in self.meta_fields:
+                s += f'{field}: {metadata[field]}, '
+            s += f'Text: {text_str}, '
             s += f'Predict: {predict}'
             print(s)
 
