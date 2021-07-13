@@ -50,7 +50,7 @@ class ConvSeq2Seq(BaseModel):
         return chars, probs
 
     def train_batch(self, batch: Batch):
-        logits = self.forward(batch.images, batch.text, batch.lengths + 2)
+        logits = self.forward(batch.images, batch.text, batch.lengths)
         return logits
 
     def compute_loss(self, logits, targets, lengths):
