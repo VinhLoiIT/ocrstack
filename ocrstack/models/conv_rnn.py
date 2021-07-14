@@ -29,6 +29,9 @@ class ConvRNN(BaseModel):
         loss = F.ctc_loss(outputs, targets, outputs_lengths, lengths, blank=self.blank_index)
         return loss
 
+    def example_inputs(self):
+        return (torch.rand(1, 3, 64, 256), )
+
     def forward(self, images, text=None, lengths=None):
         # type: (torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]) -> torch.Tensor
         images = self.conv(images)                              # B, C, H, W

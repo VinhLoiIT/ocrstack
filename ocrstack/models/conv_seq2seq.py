@@ -59,6 +59,9 @@ class ConvSeq2Seq(BaseModel):
         loss = F.cross_entropy(packed_predicts, packed_targets)
         return loss
 
+    def example_inputs(self):
+        return (torch.rand(1, 3, 64, 256), )
+
     def forward(self, images, text=None, lengths=None, image_padding_mask=None):
         # type: (Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]) -> Tensor
         images = self.backbone(images)                              # B, C, H, W

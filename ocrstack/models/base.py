@@ -8,6 +8,9 @@ class BaseModel(nn.Module):
         for param in self.parameters():
             param.requires_grad_(False)
 
+    def example_inputs(self):
+        pass
+
     def train_batch(self, batch: Batch):
         pass
 

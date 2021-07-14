@@ -1,4 +1,4 @@
-import logging
+from ocrstack.engine.logger import ConsoleLogger, NoLogger
 from typing import Dict, Optional, Union
 
 import torch
@@ -8,7 +8,13 @@ from ocrstack.models.base import BaseModel
 from torch.utils.data.dataloader import DataLoader
 
 
-class Evaluator:
+class EvaluateInterface:
+
+    def eval(self):
+        raise NotImplementedError()
+
+
+class Evaluator(EvaluateInterface):
     def __init__(self,
                  model: BaseModel,
                  data_loader: DataLoader,
@@ -33,35 +39,45 @@ class Evaluator:
         self.model = model
         self.data_loader = data_loader
         self.device = device
-        self.log_interval = log_interval
         self.num_iter_eval = num_iter_eval or float('inf')
+        self.logger = NoLogger()
+        if log_interval is not None:
+            self.logger = ConsoleLogger(log_interval, 'Evaluator')
 
-    @torch.no_grad()
     def eval(self):
         for metric in self.metrics.values():
             metric.reset()
 
         self.model.eval()
         batch: Batch
-        for i, batch in enumerate(self.data_loader):
-            batch = batch.to(self.device)
-            predicts = self.model.predict(batch)
-            for metric in self.metrics.values():
-                metric.update(predicts, batch)
+        with torch.no_grad():
+            for i, batch in enumerate(self.data_loader):
+                batch = batch.to(self.device)
+                predicts = self.model.predict(batch)
+                for metric in self.metrics.values():
+                    metric.update(predicts, batch)
 
-            if self.log_interval is not None and len(self.metrics) > 0 \
-                    and ((i + 1) % self.log_interval == 0 or (i + 1) == len(self.data_loader)):
-                logging.info('Metric at {:5d}/{}: {}'.format(
-                    i + 1,
-                    len(self.data_loader),
-                    ' - '.join([f'{name}: {metric.compute():.04f}'
-                                for name, metric in self.metrics.items()]),
-                ))
+                self.logger.log_scalars('Evaluation', {
+                    name: metric.compute()
+                    for name, metric in self.metrics.items()
+                })
 
-            if (i + 1) >= self.num_iter_eval:
-                break
+                if (i + 1) >= self.num_iter_eval:
+                    break
 
         return {
             name: metric.compute()
             for name, metric in self.metrics.items()
         }
+
+
+class ComposeEvaluator(EvaluateInterface):
+    def __init__(self, evaluators: Dict[str, EvaluateInterface]) -> None:
+        self.evaluators = evaluators
+
+    def eval(self):
+        val_metrics = {}
+        for name, evaluator in self.evaluators.items():
+            metrics = evaluator.eval()
+            val_metrics[name] = metrics
+        return val_metrics

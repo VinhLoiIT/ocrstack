@@ -77,6 +77,8 @@ class Trainer(object):
         self.visualizer = visualizer
         if logger is None:
             self.logger = ConsoleLogger(config.log_interval, name='Trainer')
+        else:
+            self.logger = logger
 
     def train_step(self, batch: Batch):
         batch = batch.to(self.config.device)
@@ -94,6 +96,7 @@ class Trainer(object):
         self.model.train()
 
         self.logger.open()
+        self.logger.log_model(self.model, self.config.device)
 
         self._save_config()
         self._warmup(train_loader)
