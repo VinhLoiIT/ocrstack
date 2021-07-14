@@ -1,4 +1,4 @@
-from ocrstack.config.trainer import Config
+from ocrstack.utils.config import Config
 
 
 def test_compare_equal_config():

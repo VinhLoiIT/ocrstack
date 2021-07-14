@@ -1,12 +1,11 @@
 import pytest
 import torch
 import torchinfo
-from ocrstack.config.trainer import TrainerConfig
 from ocrstack.data.collate import BatchCollator
 from ocrstack.data.dataset import DummyDataset
 from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab
 from ocrstack.engine.evaluator import Evaluator
-from ocrstack.engine.trainer import Trainer
+from ocrstack.engine.trainer import Trainer, TrainerConfig
 from ocrstack.models import resnet18_lstm_ctc, resnet18_transformer
 from ocrstack.transforms.image import BatchPadImages
 from ocrstack.transforms.string import BatchPadTexts

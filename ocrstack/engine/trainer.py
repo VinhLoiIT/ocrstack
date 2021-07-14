@@ -1,19 +1,45 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Union
 
 import torch
 import torch.optim as optim
-from ocrstack.config import TrainerConfig
 from ocrstack.data.collate import Batch
+from ocrstack.engine.logger import ConsoleLogger, LoggerInterface
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.models.base import BaseModel
+from ocrstack.utils.config import Config
 from torch.nn.utils.clip_grad import clip_grad_value_
 from torch.utils.data.dataloader import DataLoader
 
 from .checkpoint import CkptSaver
 from .evaluator import Evaluator
 from .visualizer import Visualizer
+
+
+@dataclass
+class TrainerConfig(Config):
+    batch_size: int
+    lr: float
+    device: str
+    iter_train: int
+    iter_eval: int
+    iter_visualize: int
+    num_iter_visualize: int
+    num_iter_warmup: int = 2
+    seed: int = 0
+    num_workers: int = 2
+    log_dir: Path = 'runs'
+    log_interval: int = 10
+    monitor_metric: str = 'CER'
+    monitor_metric_type: str = 'lower'
+    pretrained_weight: Optional[Path] = None
+    pretrained_config: Optional[Path] = None
+    resume_checkpoint: Optional[Path] = None
+    continue_training: bool = False
+    use_amp: bool = False
+    clip_grad_value: float = 0.5
 
 
 class Trainer(object):
@@ -30,6 +56,7 @@ class Trainer(object):
                  evaluator: Union[Evaluator, List[Evaluator]] = [],
                  visualizer: Visualizer = None,
                  checkpoint_callback: Optional[CkptSaver] = None,
+                 logger: Optional[LoggerInterface] = None,
                  ):
         self.model = model
         self.optimizer = optimizer
@@ -48,6 +75,8 @@ class Trainer(object):
         # self.checkpoint_saver = CkptSaver(Path(config.checkpoint_dir), exist_ok=True)
         self.checkpoint_callback = checkpoint_callback
         self.visualizer = visualizer
+        if logger is None:
+            self.logger = ConsoleLogger(config.log_interval, name='Trainer')
 
     def train_step(self, batch: Batch):
         batch = batch.to(self.config.device)
@@ -64,6 +93,8 @@ class Trainer(object):
         self.model.to(self.config.device)
         self.model.train()
 
+        self.logger.open()
+
         self._save_config()
         self._warmup(train_loader)
 
@@ -78,8 +109,8 @@ class Trainer(object):
                 loss_meter.update(loss, len(batch))
                 self.num_iteration += 1
 
+                self.logger.log_scalar('Train/Loss', loss, self.num_iteration)
                 if self.num_iteration % self.config.log_interval == 0:
-                    logging.info(f'Iteration {self.num_iteration}: Loss {loss:.4f}')
                     loss_meter.reset()
 
                 if self.visualizer is not None and self.num_iteration % self.config.iter_visualize == 0:
@@ -99,6 +130,8 @@ class Trainer(object):
 
             self.epoch += 1
 
+        self.logger.close()
+
     def state_dict(self):
         state = {
             'model': self.model.state_dict(),
@@ -117,7 +150,7 @@ class Trainer(object):
         self.num_iteration = state_dict['num_iteration']
 
     def _save_config(self):
-        config_path = Path(self.config.checkpoint_dir, 'trainer_config.yaml')
+        config_path = Path(self.config.log_dir, 'trainer_config.yaml')
         logging.info(f'Save config to {config_path}')
         config_path.parent.mkdir(parents=True, exist_ok=True)
         self.config.to_yaml(config_path)
