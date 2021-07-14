@@ -32,6 +32,9 @@ class ConsoleLogger(LoggerInterface):
         self.log_interval = log_interval
         self._internal_step = 0
 
+    def open(self):
+        self._internal_step = 0
+
     def log_scalar(self, name: str, value: float, step: Optional[int] = None):
         self._internal_step = step or self._internal_step
         if self._internal_step % self.log_interval == 0:
