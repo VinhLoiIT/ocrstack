@@ -8,6 +8,7 @@ from ocrstack.data.collate import Batch
 from ocrstack.opts.sequence_decoder import BaseDecoder
 from ocrstack.opts.sequence_encoder import BaseEncoder
 from ocrstack.opts.string_decoder import StringDecoder
+from ocrstack.utils import generate_padding_mask_from_lengths
 from torch import Tensor
 from torch.nn.utils.rnn import pack_padded_sequence
 
@@ -80,7 +81,7 @@ class ConvSeq2Seq(BaseModel):
             images = self.encoder(images, image_padding_mask)
 
         if self.training:
-            text_padding_mask = _generate_padding_mask_from_lengths(lengths - 1).to(images.device)      # B, S
+            text_padding_mask = generate_padding_mask_from_lengths(lengths - 1).to(images.device)      # B, S
             logits = self.decoder(images, text[:, :-1].float(),
                                   memory_key_padding_mask=image_padding_mask,
                                   tgt_key_padding_mask=text_padding_mask)
@@ -90,9 +91,3 @@ class ConvSeq2Seq(BaseModel):
             predicts, lengths = self.decoder.decode(images, self.max_length, self.sos_onehot,
                                                     self.eos_onehot, image_padding_mask)
             return predicts, lengths
-
-
-def _generate_padding_mask_from_lengths(lengths: torch.Tensor) -> torch.Tensor:
-    B, S = len(lengths), lengths.max()
-    padding_mask = torch.arange(0, S, device=lengths.device).expand(B, S) >= lengths.unsqueeze(-1)
-    return padding_mask
