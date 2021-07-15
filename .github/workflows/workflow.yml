@@ -5,9 +5,9 @@ name: autobuild
 
 on:
   push:
-    branches: [ dev, docs ]
+    branches: [ dev ]
   pull_request:
-    branches: [ dev, docs ]
+    branches: [ dev ]
 
 defaults:
   run:
