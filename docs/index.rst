@@ -22,12 +22,6 @@ API Reference
 
    modules/engine
    modules/data
-   modules/logger
-   modules/loss
-   modules/metrics
-   modules/models
-   modules/opts
-   modules/transforms
 
 Indices and tables
 ==================
