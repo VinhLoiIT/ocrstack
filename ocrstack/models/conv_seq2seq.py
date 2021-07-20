@@ -1,47 +1,28 @@
-from dataclasses import dataclass
 from typing import Optional
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from torch import Tensor
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from .base import BaseModel
-from .layers.sequence_decoder import BaseDecoder
-from .layers.sequence_encoder import BaseEncoder
 from .layers.string_decoder import StringDecoder
 from .utils import generate_padding_mask_from_lengths
 
 
-@dataclass
-class ConvSeq2SeqConfig:
-    feature_size: int
-    vocab_size: int
-    d_model: int
-    sos_index: int
-    eos_index: int
-    max_length: int
-
-
 class ConvSeq2Seq(BaseModel):
-    def __init__(self, cfg, backbone, decoder, string_decode, encoder=None):
-        # type: (ConvSeq2SeqConfig, nn.Module, BaseDecoder, StringDecoder ,Optional[BaseEncoder],) -> None
-        super(ConvSeq2Seq, self).__init__()
-        self.backbone = backbone
-        self.conv_embed: Optional[nn.Conv2d] = None
-        if cfg.feature_size != cfg.d_model:
-            self.conv_embed = nn.Conv2d(cfg.feature_size, cfg.d_model, (1, 1))
-        self.encoder = encoder
-        self.decoder = decoder
+    def __init__(self, cfg, string_decode):
+        # type: (Config, StringDecoder) -> None
+        super(ConvSeq2Seq, self).__init__(cfg)
 
-        sos_onehot = F.one_hot(torch.tensor([cfg.sos_index]), cfg.vocab_size).float()
-        eos_onehot = F.one_hot(torch.tensor([cfg.eos_index]), cfg.vocab_size).float()
+        sos_onehot = F.one_hot(torch.tensor([cfg.MODEL.DECODER.SOS_IDX]), cfg.MODEL.DECODER.VOCAB_SIZE).float()
+        eos_onehot = F.one_hot(torch.tensor([cfg.MODEL.DECODER.EOS_IDX]), cfg.MODEL.DECODER.VOCAB_SIZE).float()
 
         self.register_buffer('sos_onehot', sos_onehot)
         self.register_buffer('eos_onehot', eos_onehot)
-        self.max_length = cfg.max_length
+        self.max_length = cfg.MODEL.DECODER.MAX_LENGTH
 
         self.string_decode = string_decode
 
@@ -66,9 +47,6 @@ class ConvSeq2Seq(BaseModel):
     def forward(self, images, text=None, lengths=None, image_padding_mask=None):
         # type: (Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]) -> Tensor
         images = self.backbone(images)                              # B, C, H, W
-
-        if self.conv_embed:
-            images = self.conv_embed(images)                        # B, E, H, W
 
         B, E, H, W = images.shape
         images = images.reshape(B, E, H * W)                    # B, E, H * W

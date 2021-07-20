@@ -6,7 +6,8 @@ from ocrstack.data.dataset import DummyDataset
 from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab
 from ocrstack.engine.evaluator import Evaluator
 from ocrstack.engine.trainer import Trainer, TrainerConfig
-from ocrstack.models import resnet18_attn_lstm, resnet18_lstm_ctc, resnet18_transformer
+from ocrstack.models import (resnet18_attn_lstm, resnet18_lstm_ctc,
+                             resnet18_transformer)
 from ocrstack.transforms.image import BatchPadImages
 from ocrstack.transforms.string import BatchPadTexts
 from torch import optim
@@ -21,7 +22,7 @@ def test_log_info():
     ])
 
     vocab = Seq2SeqVocab(list('12345678'))
-    model = resnet18_transformer(False, vocab, d_model=128, nhead=8, num_layers=2, max_length=20)
+    model = resnet18_transformer(False, vocab, d_model=512, nhead=8, num_layers=2, max_length=20)
     torchinfo.summary(model,
                       col_names=('input_size', 'output_size', 'num_params'),
                       row_settings=('depth', 'var_names'),
@@ -69,7 +70,7 @@ def trainer_seq2seq(device):
     vocab = Seq2SeqVocab(list('12345678'))
     vocab_size = len(vocab)
 
-    model = resnet18_transformer(False, vocab, d_model=128, nhead=8, num_layers=1, max_length=20)
+    model = resnet18_transformer(False, vocab, d_model=512, nhead=8, num_layers=1, max_length=20)
 
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
