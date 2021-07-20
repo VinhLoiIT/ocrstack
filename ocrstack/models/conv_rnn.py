@@ -4,9 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ocrstack.data.collate import Batch
-from ocrstack.opts.string_decoder import StringDecoder
 
 from .base import BaseModel
+from .layers.string_decoder import StringDecoder
 
 
 class ConvRNN(BaseModel):

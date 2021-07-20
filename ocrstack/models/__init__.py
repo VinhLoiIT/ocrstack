@@ -1,13 +1,13 @@
-from ocrstack.models.conv_attn_rnn import ConvAttnRNN, ConvAttnRNNConfig
 import torch.nn as nn
-from ocrstack.models.conv_seq2seq import ConvSeq2Seq, ConvSeq2SeqConfig
-from ocrstack.opts.attention import DotProductAttention
-from ocrstack.opts.sequence_decoder import (AttentionLSTMDecoder,
-                                            TransformerDecoderAdapter)
-from ocrstack.opts.string_decoder import CTCGreedyDecoder, Seq2SeqGreedyDecoder
 
 from .conv import resnet_feature
+from .conv_attn_rnn import ConvAttnRNN, ConvAttnRNNConfig
 from .conv_rnn import ConvRNN
+from .conv_seq2seq import ConvSeq2Seq, ConvSeq2SeqConfig
+from .layers.attention import DotProductAttention
+from .layers.sequence_decoder import (AttentionLSTMDecoder,
+                                      TransformerDecoderAdapter)
+from .layers.string_decoder import CTCGreedyDecoder, Seq2SeqGreedyDecoder
 
 
 def resnet18_lstm_ctc(pretrained: bool, vocab, **lstm_kwargs):

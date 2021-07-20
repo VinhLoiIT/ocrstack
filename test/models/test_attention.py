@@ -1,5 +1,5 @@
 import torch
-from ocrstack.opts.attention import attention
+from ocrstack.models.layers.attention import attention
 
 
 def test_attention():

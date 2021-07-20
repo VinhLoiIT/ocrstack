@@ -5,11 +5,11 @@ from typing import List, Optional, Union
 
 import torch
 import torch.optim as optim
+from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from ocrstack.engine.logger import ConsoleLogger, LoggerInterface
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.models.base import BaseModel
-from ocrstack.utils.config import Config
 from torch.nn.utils.clip_grad import clip_grad_value_
 from torch.utils.data.dataloader import DataLoader
 

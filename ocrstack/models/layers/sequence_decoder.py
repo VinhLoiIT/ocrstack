@@ -3,8 +3,9 @@ from typing import Any, Callable, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ocrstack.opts.attention import Attention
 from torch import Tensor
+
+from .attention import Attention
 
 
 def _decode_unimplemented(self, *input: Any) -> None:

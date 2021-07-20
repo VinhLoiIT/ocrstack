@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ocrstack.opts.attention import DotProductAttention
-from ocrstack.opts.sequence_decoder import (AttentionLSTMDecoder,
-                                            TransformerDecoderAdapter)
+from ocrstack.models.layers.attention import DotProductAttention
+from ocrstack.models.layers.sequence_decoder import (AttentionLSTMDecoder,
+                                                     TransformerDecoderAdapter)
 
 
 def test_transformer_decoder_adapter_forward():

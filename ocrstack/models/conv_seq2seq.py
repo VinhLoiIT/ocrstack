@@ -5,14 +5,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ocrstack.data.collate import Batch
-from ocrstack.opts.sequence_decoder import BaseDecoder
-from ocrstack.opts.sequence_encoder import BaseEncoder
-from ocrstack.opts.string_decoder import StringDecoder
-from ocrstack.utils import generate_padding_mask_from_lengths
 from torch import Tensor
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from .base import BaseModel
+from .layers.sequence_decoder import BaseDecoder
+from .layers.sequence_encoder import BaseEncoder
+from .layers.string_decoder import StringDecoder
+from .utils import generate_padding_mask_from_lengths
 
 
 @dataclass
