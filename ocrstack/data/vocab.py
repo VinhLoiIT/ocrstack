@@ -95,10 +95,12 @@ class Seq2SeqVocab(Vocab):
     def __init__(self,
                  vocab: Union[Counter, List, VocabAdapter],
                  sos: str = '<sos>',
-                 eos: str = '<eos>'):
-        super(Seq2SeqVocab, self).__init__(vocab, [sos, eos])
+                 eos: str = '<eos>',
+                 pad: str = '<pad>'):
+        super(Seq2SeqVocab, self).__init__(vocab, [sos, eos, pad])
         self.__sos = sos
         self.__eos = eos
+        self.__pad = pad
 
     @property
     def SOS(self):
@@ -115,3 +117,11 @@ class Seq2SeqVocab(Vocab):
     @property
     def EOS_IDX(self):
         return self.char2int(self.__eos)
+
+    @property
+    def PAD(self):
+        return self.__eos
+
+    @property
+    def PAD_IDX(self):
+        return self.char2int(self.__pad)
