@@ -1,45 +1,28 @@
-from dataclasses import dataclass
 from typing import Optional
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from ocrstack.models.base import BaseModel
 from torch import Tensor
 from torch.nn.utils.rnn import pack_padded_sequence
 
-from .layers.sequence_decoder import BaseDecoder
-from .layers.sequence_encoder import BaseEncoder
 from .layers.string_decoder import StringDecoder
 from .utils import generate_padding_mask_from_lengths
 
 
-@dataclass
-class ConvAttnRNNConfig:
-    feature_size: int
-    vocab_size: int
-    hidden_size: int
-    sos_index: int
-    eos_index: int
-    max_length: int
-
-
 class ConvAttnRNN(BaseModel):
-    def __init__(self, cfg, conv, decoder, string_decode, encoder=None):
-        # type: (ConvAttnRNNConfig, nn.Module, BaseDecoder, StringDecoder, Optional[BaseEncoder]) -> None
-        super(ConvAttnRNN, self).__init__()
-        self.conv = conv
-        self.conv_embed = nn.Conv2d(cfg.feature_size, cfg.hidden_size, (1, 1))
-        self.encoder = encoder
-        self.decoder = decoder
+    def __init__(self, cfg, string_decode):
+        # type: (Config, StringDecoder) -> None
+        super(ConvAttnRNN, self).__init__(cfg)
 
-        sos_onehot = F.one_hot(torch.tensor([cfg.sos_index]), cfg.vocab_size).float()
-        eos_onehot = F.one_hot(torch.tensor([cfg.eos_index]), cfg.vocab_size).float()
+        sos_onehot = F.one_hot(torch.tensor([cfg.MODEL.DECODER.SOS_IDX]), cfg.MODEL.DECODER.VOCAB_SIZE).float()
+        eos_onehot = F.one_hot(torch.tensor([cfg.MODEL.DECODER.EOS_IDX]), cfg.MODEL.DECODER.VOCAB_SIZE).float()
 
         self.register_buffer('sos_onehot', sos_onehot)
         self.register_buffer('eos_onehot', eos_onehot)
-        self.max_length = cfg.max_length
+        self.max_length = cfg.MODEL.DECODER.MAX_LENGTH
 
         self.string_decode = string_decode
 
@@ -63,8 +46,7 @@ class ConvAttnRNN(BaseModel):
 
     def forward(self, images, text=None, lengths=None, image_padding_mask=None):
         # type: (Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]) -> Tensor
-        images = self.conv(images)                              # B, C, H, W
-        images = self.conv_embed(images)                        # B, E, H, W
+        images = self.backbone(images)                          # B, C, H, W
         B, E, H, W = images.shape
         images = images.reshape(B, E, H * W)                    # B, E, H * W
         images = images.transpose(-2, -1)                       # B, S = H * W, E

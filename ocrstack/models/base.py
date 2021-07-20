@@ -2,8 +2,10 @@ import torch.nn as nn
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from ocrstack.models.conv import resnet_feature
+from ocrstack.models.layers.attention import DotProductAttention
 
-from .layers.sequence_decoder import BaseDecoder, TransformerDecoderAdapter
+from .layers.sequence_decoder import (AttentionLSTMDecoder, BaseDecoder,
+                                      TransformerDecoderAdapter)
 from .layers.sequence_encoder import BaseEncoder
 
 
@@ -40,6 +42,15 @@ class BaseModel(nn.Module):
                     nn.TransformerDecoderLayer(cfg_node.D_MODEL, cfg_node.NUM_HEADS),
                     cfg_node.NUM_LAYERS
                 ),
+            )
+            return decoder
+        elif cfg_node.TYPE == 'attn_lstm':
+            decoder = AttentionLSTMDecoder(
+                text_embedding=nn.Linear(cfg_node.VOCAB_SIZE, cfg_node.HIDDEN_SIZE),
+                text_classifier=nn.Linear(cfg_node.HIDDEN_SIZE, cfg_node.VOCAB_SIZE),
+                lstm=nn.LSTMCell(cfg_node.VOCAB_SIZE + cfg_node.HIDDEN_SIZE, cfg_node.HIDDEN_SIZE),
+                attention=DotProductAttention(scaled=True),
+                teacher_forcing=False,
             )
             return decoder
 

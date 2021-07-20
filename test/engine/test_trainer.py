@@ -103,7 +103,7 @@ def trainer_seq2seq(device):
 
 def trainer_conv_attn_rnn(device):
     vocab = Seq2SeqVocab(list('12345678'))
-    model = resnet18_attn_lstm(False, vocab, hidden_size=256, max_length=5)
+    model = resnet18_attn_lstm(False, vocab, hidden_size=512, max_length=5)
 
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
