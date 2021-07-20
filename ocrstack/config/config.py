@@ -12,7 +12,8 @@ class Config(dict):
         if name in self:
             return self[name]
         else:
-            raise AttributeError(name)
+            self[name] = Config()
+            return self[name]
 
     def __setattr__(self, name: str, value: Any) -> None:
         self[name] = value
@@ -43,18 +44,3 @@ class Config(dict):
     def to_yaml(self, yaml_path: Path) -> None:
         with open(yaml_path, 'wt') as f:
             yaml.safe_dump(self.to_dict(), f, indent=2)
-
-    def __eq__(self, other: 'Config'):
-        if len(self.keys()) != len(other.keys()):
-            return False
-
-        for k, v in self.items():
-            if k not in other.keys():
-                return False
-            if v != other[k]:
-                return False
-
-        return True
-
-    def __neq__(self, other: 'Config'):
-        return not self == other
