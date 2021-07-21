@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from ..utils import generate_square_subsequent_mask
 from .attention import Attention
 
 
@@ -66,7 +67,7 @@ class TransformerDecoderAdapter(BaseDecoder):
         tgt = self.text_embedding(tgt)              # [B, S, E]
         tgt = tgt.transpose(0, 1)                   # [S, B, E]
         memory = memory.transpose(0, 1)             # [T, B, E]
-        tgt_mask = _generate_square_subsequent_mask(tgt.size(0)).to(memory.device)
+        tgt_mask = generate_square_subsequent_mask(tgt.size(0)).to(memory.device)
         memory_mask = None
         output = self.decoder(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask)
         output = output.transpose(0, 1)                 # [B, T, E]
