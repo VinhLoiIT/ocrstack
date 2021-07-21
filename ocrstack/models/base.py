@@ -9,10 +9,23 @@ from .layers.sequence_decoder import (AttentionLSTMDecoder, BaseDecoder,
 from .layers.sequence_encoder import BaseEncoder
 
 
-class BaseModel(nn.Module):
+class ModelInterface:
+
+    def example_inputs(self):
+        pass
+
+    def train_batch(self, batch: Batch):
+        pass
+
+    def predict(self, batch: Batch):
+        pass
+
+    
+class BaseModel(nn.Module, ModelInterface):
 
     def __init__(self, cfg):
         super().__init__()
+        self.cfg = cfg
         self.backbone = self.build_backbone(cfg)
         self.encoder = self.build_encoder(cfg)
         self.decoder = self.build_decoder(cfg)
@@ -59,12 +72,3 @@ class BaseModel(nn.Module):
     def freeze(self):
         for param in self.parameters():
             param.requires_grad_(False)
-
-    def example_inputs(self):
-        pass
-
-    def train_batch(self, batch: Batch):
-        pass
-
-    def predict(self, batch: Batch):
-        pass
