@@ -40,9 +40,9 @@ class BaseDecoder(nn.Module):
         out_embed = nn.Linear(cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
                               cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
                               bias=False)
-        in_embed = nn.Linear(cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
-                             cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
-                             bias=False)
+        in_embed = nn.Embedding(cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
+                                cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
+                                cfg.MODEL.TEXT_EMBED.PAD_IDX)
         return in_embed, out_embed
 
 
@@ -59,6 +59,8 @@ class TransformerDecoderAdapter(BaseDecoder):
             nn.TransformerDecoderLayer(cfg.MODEL.DECODER.D_MODEL, cfg.MODEL.DECODER.NUM_HEADS),
             cfg.MODEL.DECODER.NUM_LAYERS
         )
+        self.sos_idx = cfg.MODEL.TEXT_EMBED.SOS_IDX
+        self.eos_idx = cfg.MODEL.TEXT_EMBED.EOS_IDX
 
     def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
         # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tensor
@@ -66,50 +68,49 @@ class TransformerDecoderAdapter(BaseDecoder):
         Arguments:
         ----------
         - memory: (B, S, E)
-        - tgt: (B, T, V)
+        - tgt: (B, T)
 
         Returns:
         --------
         - logits: (B, T, V)
         '''
         # Since transformer components working with time-first tensor, we should transpose the shape first
-        tgt = self.in_embed(tgt)              # [B, S, E]
-        tgt = tgt.transpose(0, 1)                   # [S, B, E]
-        memory = memory.transpose(0, 1)             # [T, B, E]
+        tgt = self.in_embed(tgt)                    # [B, T, E]
+        tgt = tgt.transpose(0, 1)                   # [T, B, E]
+        memory = memory.transpose(0, 1)             # [S, B, E]
         tgt_mask = generate_square_subsequent_mask(tgt.size(0)).to(memory.device)
         memory_mask = None
         output = self.decoder(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask)
         output = output.transpose(0, 1)                 # [B, T, E]
-        output = self.out_embed(output)           # [B, T, V]
+        output = self.out_embed(output)                 # [B, T, V]
         return output
 
     @torch.jit.export
-    def decode(self, memory, max_length, sos_onehot, eos_onehot, memory_key_padding_mask=None):
-        # type: (Tensor, int, Tensor, Tensor, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+    def decode(self, memory, max_length, memory_key_padding_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         batch_size = memory.size(0)
-        predicts = sos_onehot.unsqueeze(0).repeat(batch_size, 1, 1)     # [B, 1, V]
-        ends = eos_onehot.argmax(-1).repeat(batch_size).squeeze(-1)     # [B]
-
-        predicts = predicts.to(memory.device)
-        ends = ends.to(memory.device)
-
+        inputs = torch.empty(batch_size, 1, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
+        outputs = []
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         lengths = torch.ones(batch_size, dtype=torch.long).fill_(max_length)
         for t in range(max_length):
-            text = self.forward(memory, predicts, memory_key_padding_mask)               # [B, T, V]
-            output = F.softmax(text[:, [-1]], dim=-1)                    # [B, 1, V]
-            predicts = torch.cat([predicts, output], dim=1)     # [B, T + 1, V]
+            text = self.forward(memory, inputs, memory_key_padding_mask)        # [B, T, V]
+            output = F.softmax(text[:, -1], dim=-1)                             # [B, V]
+            outputs.append(output)                                              # [[B, V]]
+            output = output.argmax(-1, keepdim=True)                            # [B, 1]
+            inputs = torch.cat((inputs, output), dim=1)                         # [B, T + 1]
 
             # set flag for early break
-            output = output.squeeze(1).argmax(-1)               # [B]
-            current_end = output == ends                        # [B]
+            output = output.squeeze(1)               # [B]
+            current_end = output == self.eos_idx     # [B]
             current_end = current_end.cpu()
             lengths.masked_fill_(~end_flag & current_end, t + 1)
             end_flag |= current_end
             if end_flag.all():
                 break
 
-        return predicts[:, 1:], lengths  # remove <sos>
+        outputs = torch.stack(outputs, dim=1)                                   # [B, T, V]
+        return outputs, lengths  # remove <sos>
 
 
 class AttentionLSTMDecoder(BaseDecoder):
@@ -121,17 +122,18 @@ class AttentionLSTMDecoder(BaseDecoder):
                                 cfg.MODEL.DECODER.HIDDEN_SIZE)
         self.attention = DotProductAttention(scaled=True)
         self.teacher_forcing = cfg.MODEL.DECODER.TEACHER_FORCING
+        self.sos_idx = cfg.MODEL.TEXT_EMBED.SOS_IDX
+        self.eos_idx = cfg.MODEL.TEXT_EMBED.EOS_IDX
 
     def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
         # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tuple[Tensor, Tensor]
         '''
         memory: (B, T, E)
-        tgt: (B, T, V)  -> fix to (B, T)
+        tgt: (B, T)
         '''
         hidden, cell = self._init_hidden(memory.size(0), memory.device)
         outputs = []
 
-        # tgt = tgt.argmax(-1)        # B, T
         for t in range(tgt.size(1)):
             context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
             context = context.squeeze(1)                                            # B, H
@@ -152,20 +154,15 @@ class AttentionLSTMDecoder(BaseDecoder):
         return (h0, c0)
 
     @torch.jit.export
-    def decode(self, memory, max_length, sos_onehot, eos_onehot, memory_key_padding_mask=None):
-        # type: (Tensor, int, Tensor, Tensor, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+    def decode(self, memory, max_length, memory_key_padding_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         '''
         memory: (B, T, E)
-        tgt: (B, T, V)
         '''
         batch_size = memory.size(0)
         hidden, cell = self._init_hidden(batch_size, memory.device)
-        sos_onehot = sos_onehot.to(memory.device)
-        eos_onehot = eos_onehot.to(memory.device)
+        inputs = torch.empty(batch_size, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
         outputs = []
-
-        sos_onehot = sos_onehot.expand(batch_size, sos_onehot.size(-1))                   # [B, V]
-        ends = eos_onehot.argmax(-1).squeeze(-1).expand(batch_size)     # [B]
 
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         lengths = torch.ones(batch_size, dtype=torch.long).fill_(max_length)
@@ -173,17 +170,17 @@ class AttentionLSTMDecoder(BaseDecoder):
             context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
             context = context.squeeze(1)                                            # B, E
             if t == 0:
-                inputs = torch.cat((context, self.in_embed(sos_onehot)), dim=-1)                   # B, E + V
+                inputs = torch.cat((context, self.in_embed(inputs)), dim=-1)        # B, E + V
             else:
-                inputs = torch.cat((context, hidden), dim=-1)                  # B, E + V
+                inputs = torch.cat((context, hidden), dim=-1)                       # B, E + V
             hidden, cell = self.lstm(inputs, (hidden, cell))                        # B, H
-            output = self.out_embed(hidden)                                   # B, V
+            output = self.out_embed(hidden)                                         # B, V
             output = F.softmax(output, dim=-1)                                      # B, V
             outputs.append(output)
 
             # set flag for early break
             output = output.argmax(-1)               # [B]
-            current_end = output == ends             # [B]
+            current_end = output == self.eos_idx     # [B]
             current_end = current_end.cpu()
             lengths.masked_fill_(~end_flag & current_end, t + 1)
             end_flag |= current_end

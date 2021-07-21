@@ -84,7 +84,7 @@ class BatchPadTexts:
             return texts[0].unsqueeze(0)
 
         batch_shape = [len(texts), max_length] + list(texts[0].shape[1:])
-        batched_text = torch.empty(batch_shape)
+        batched_text = torch.empty(batch_shape, dtype=torch.long)
         for i, t in enumerate(texts):
             batched_text[i, :t.shape[0], ...].copy_(t)
             batched_text[i, t.shape[0]:, ...].copy_(self.pad_value)

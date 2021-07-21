@@ -87,7 +87,7 @@ def trainer_seq2seq(device):
 
     batch_collator = BatchCollator(
         BatchPadImages(0.),
-        BatchPadTexts(0.),
+        BatchPadTexts(vocab.PAD_IDX),
     )
 
     train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
@@ -120,7 +120,7 @@ def trainer_conv_attn_rnn(device):
 
     batch_collator = BatchCollator(
         BatchPadImages(0.),
-        BatchPadTexts(0.),
+        BatchPadTexts(vocab.PAD_IDX),
     )
 
     train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,

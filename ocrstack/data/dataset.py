@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Callable, List, Optional, Union
 
 import torch
-import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -134,7 +133,6 @@ class DummyDataset(Dataset):
             self.texts = torch.randint(0, vocab_size, (num_samples, max_lengths + 2))
         else:
             self.texts = torch.randint(0, vocab_size, (num_samples, max_lengths))
-        self.onehot_texts = F.one_hot(self.texts, vocab_size)
         self.space_idx = 0
         self.vocab_size = vocab_size
         self.seq2seq = seq2seq
@@ -147,7 +145,7 @@ class DummyDataset(Dataset):
             raw_text = ''.join([' ' if item.item() == self.space_idx else '0' for item in self.texts[index][1:-1]])
         else:
             raw_text = ''.join([' ' if item.item() == self.space_idx else '0' for item in self.texts[index]])
-        text = self.onehot_texts[index]
+        text = self.texts[index]
         return {
             'metadata': {
                 'imagePath': f'imagePath_{index}',

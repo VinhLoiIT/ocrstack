@@ -68,7 +68,7 @@ class GeneralizedCRNN(BaseModel):
         outputs, out_lengths = self.decoder(images)
 
         if self.training:
-            loss = self.compute_loss(outputs, text.argmax(dim=-1), out_lengths, lengths)
+            loss = self.compute_loss(outputs, text, out_lengths, lengths)
             return loss
         else:
             return outputs, out_lengths

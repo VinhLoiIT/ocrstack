@@ -25,13 +25,7 @@ class GeneralizedConvSeq2Seq(BaseModel):
         self.encoder = self.build_encoder(cfg)
         self.decoder = self.build_decoder(cfg)
 
-        sos_onehot = F.one_hot(torch.tensor([cfg.MODEL.TEXT_EMBED.SOS_IDX]), cfg.MODEL.TEXT_EMBED.VOCAB_SIZE).float()
-        eos_onehot = F.one_hot(torch.tensor([cfg.MODEL.TEXT_EMBED.EOS_IDX]), cfg.MODEL.TEXT_EMBED.VOCAB_SIZE).float()
-
-        self.register_buffer('sos_onehot', sos_onehot)
-        self.register_buffer('eos_onehot', eos_onehot)
         self.max_length = cfg.MODEL.DECODER.MAX_LENGTH
-
         self.string_decode = string_decode
 
     def build_encoder(self, cfg: Config) -> BaseEncoder:
@@ -90,12 +84,11 @@ class GeneralizedConvSeq2Seq(BaseModel):
 
         if self.training:
             text_padding_mask = generate_padding_mask_from_lengths(lengths - 1).to(images.device)      # B, S
-            logits = self.decoder(images, text[:, :-1].float(),
+            logits = self.decoder(images, text[:, :-1],
                                   memory_key_padding_mask=image_padding_mask,
                                   tgt_key_padding_mask=text_padding_mask)
-            loss = self.compute_loss(logits, text.argmax(dim=-1)[:, 1:], lengths - 1)
+            loss = self.compute_loss(logits, text[:, 1:], lengths - 1)
             return loss
         else:
-            predicts, lengths = self.decoder.decode(images, self.max_length, self.sos_onehot,
-                                                    self.eos_onehot, image_padding_mask)
+            predicts, lengths = self.decoder.decode(images, self.max_length, image_padding_mask)
             return predicts, lengths
