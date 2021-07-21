@@ -3,6 +3,7 @@ from typing import Any, Callable, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from ocrstack.config.config import Config
 from torch import Tensor
 
 from ..utils import generate_square_subsequent_mask
@@ -178,4 +179,40 @@ class AttentionLSTMDecoder(BaseDecoder):
             if end_flag.all():
                 break
         outputs = torch.stack(outputs, dim=1)
+        return outputs, lengths
+
+
+class VisualLSTMDecoder(BaseDecoder):
+    def __init__(self, cfg: Config):
+        super().__init__(None, None)
+        self.lstm = nn.LSTM(
+            cfg.MODEL.DECODER.INPUT_SIZE,
+            cfg.MODEL.DECODER.HIDDEN_SIZE,
+            cfg.MODEL.DECODER.NUM_LAYERS,
+            cfg.MODEL.DECODER.BIAS,
+            cfg.MODEL.DECODER.BATCH_FIRST,
+            cfg.MODEL.DECODER.DROPOUT,
+            cfg.MODEL.DECODER.BIDIRECTIONAL,
+            cfg.MODEL.DECODER.PROJ_SIZE,
+        )
+
+        NUM_DIRECTIONS = 2 if cfg.MODEL.DECODER.BIDIRECTIONAL else 1
+        self.out = nn.Linear(
+            NUM_DIRECTIONS * cfg.MODEL.DECODER.HIDDEN_SIZE,
+            cfg.MODEL.DECODER.VOCAB_SIZE,
+            cfg.MODEL.DECODER.OUT_BIAS,
+        )
+        self.decode = self.forward
+
+    def forward(self, images):
+        outputs, _ = self.lstm(images)                          # T, B, H*num_direction
+        outputs = self.out(outputs)                             # T, B, V or B, T, V
+
+        if self.lstm.batch_first:
+            B, T = outputs.size(0), outputs.size(1)
+        else:
+            B, T = outputs.size(1), outputs.size(0)
+
+        lengths = torch.empty(B, device=images.device, dtype=torch.long).fill_(T)
+
         return outputs, lengths

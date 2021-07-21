@@ -16,7 +16,7 @@ from torch.utils.data.dataloader import DataLoader
 
 def test_log_info():
     vocab = CTCVocab(list('12345678'))
-    model = resnet18_lstm_ctc(pretrained=False, vocab=vocab, hidden_size=128)
+    model = resnet18_lstm_ctc(pretrained=False, vocab=vocab)
     torchinfo.summary(model, input_size=[
         [1, 3, 64, 256],
     ])
@@ -36,7 +36,7 @@ def test_log_info():
 def trainer_ctc(device):
     vocab = CTCVocab(list('12345678'))
     vocab_size = len(vocab)
-    model = resnet18_lstm_ctc(pretrained=False, vocab=vocab, hidden_size=128)
+    model = resnet18_lstm_ctc(pretrained=False, vocab=vocab)
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
         batch_size=2,

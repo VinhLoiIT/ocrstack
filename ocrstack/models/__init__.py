@@ -1,18 +1,38 @@
-import torch.nn as nn
+from ocrstack.models.conv_rnn import GeneralizedCRNN
 from ocrstack.config.config import Config
 
-from .conv import resnet_feature
-from .conv_attn_rnn import ConvAttnRNN
-from .conv_rnn import ConvRNN
-from .conv_seq2seq import ConvSeq2Seq
+from .conv_seq2seq import GeneralizedConvSeq2Seq
 from .layers.string_decoder import CTCGreedyDecoder, Seq2SeqGreedyDecoder
 
 
-def resnet18_lstm_ctc(pretrained: bool, vocab, **lstm_kwargs):
-    features, input_size = resnet_feature('resnet18', pretrained)
-    lstm = nn.LSTM(input_size=input_size, **lstm_kwargs)
-    vocab_size = len(vocab)
-    return ConvRNN(features, lstm, vocab_size, vocab.BLANK_IDX, CTCGreedyDecoder(vocab))
+def resnet18_lstm_ctc(pretrained: bool, vocab):
+    cfg = Config()
+    cfg.MODEL.BACKBONE.TYPE = 'resnet18'
+    cfg.MODEL.BACKBONE.FEATURE_SIZE = 512
+    cfg.MODEL.BACKBONE.PRETRAINED = pretrained
+
+    cfg.MODEL.ENCODER.TYPE = 'avg_pool'
+    cfg.MODEL.ENCODER.BATCH_FIRST = True
+
+    cfg.MODEL.DECODER.TYPE = 'lstm'
+    cfg.MODEL.DECODER.VOCAB_SIZE = len(vocab)
+    cfg.MODEL.DECODER.INPUT_SIZE = cfg.MODEL.BACKBONE.FEATURE_SIZE
+    cfg.MODEL.DECODER.HIDDEN_SIZE = 256
+    cfg.MODEL.DECODER.NUM_LAYERS = 2
+    cfg.MODEL.DECODER.BIAS = True
+    cfg.MODEL.DECODER.BATCH_FIRST = True
+    cfg.MODEL.DECODER.DROPOUT = 0.1
+    cfg.MODEL.DECODER.BIDIRECTIONAL = True
+    cfg.MODEL.DECODER.PROJ_SIZE = 0
+
+    cfg.MODEL.DECODER.BLANK_IDX = vocab.BLANK_IDX
+
+    model = GeneralizedCRNN(
+        cfg,
+        CTCGreedyDecoder(vocab),
+    )
+
+    return model
 
 
 def resnet18_transformer(pretrained: bool, vocab, d_model, nhead, num_layers, max_length):
@@ -33,7 +53,7 @@ def resnet18_transformer(pretrained: bool, vocab, d_model, nhead, num_layers, ma
     cfg.MODEL.DECODER.EOS_IDX = vocab.EOS_IDX
     cfg.MODEL.DECODER.PAD_IDX = vocab.PAD_IDX
 
-    model = ConvSeq2Seq(
+    model = GeneralizedConvSeq2Seq(
         cfg,
         Seq2SeqGreedyDecoder(vocab, keep_eos=True),
     )
@@ -56,7 +76,7 @@ def resnet18_attn_lstm(pretrained: bool, vocab, hidden_size, max_length):
     cfg.MODEL.DECODER.EOS_IDX = vocab.EOS_IDX
     cfg.MODEL.DECODER.PAD_IDX = vocab.PAD_IDX
 
-    model = ConvAttnRNN(
+    model = GeneralizedConvSeq2Seq(
         cfg,
         Seq2SeqGreedyDecoder(vocab, keep_eos=True),
     )
