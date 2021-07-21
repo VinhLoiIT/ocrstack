@@ -7,7 +7,7 @@ from ocrstack.config.config import Config
 from torch import Tensor
 
 from ..utils import generate_square_subsequent_mask
-from .attention import Attention
+from .attention import DotProductAttention
 
 
 def _decode_unimplemented(self, *input: Any) -> None:
@@ -36,10 +36,14 @@ class BaseDecoder(nn.Module):
     '''
     decode: Callable[..., Any] = _decode_unimplemented
 
-    def __init__(self, text_embedding: nn.Module, text_classifier: nn.Module):
-        super(BaseDecoder, self).__init__()
-        self.text_embedding = text_embedding
-        self.text_classifier = text_classifier
+    def build_embedding(self, cfg: Config) -> Tuple[nn.Module, nn.Module]:
+        out_embed = nn.Linear(cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
+                              cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
+                              bias=False)
+        in_embed = nn.Linear(cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
+                             cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
+                             bias=False)
+        return in_embed, out_embed
 
 
 class TransformerDecoderAdapter(BaseDecoder):
@@ -48,9 +52,13 @@ class TransformerDecoderAdapter(BaseDecoder):
     This class adapts `nn.TransformerDecoder` class to the stack
     '''
 
-    def __init__(self, text_embedding: nn.Module, text_classifier: nn.Module, decoder: nn.TransformerDecoder):
-        super(TransformerDecoderAdapter, self).__init__(text_embedding, text_classifier)
-        self.decoder = decoder
+    def __init__(self, cfg):
+        super(TransformerDecoderAdapter, self).__init__()
+        self.in_embed, self.out_embed = self.build_embedding(cfg)
+        self.decoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(cfg.MODEL.DECODER.D_MODEL, cfg.MODEL.DECODER.NUM_HEADS),
+            cfg.MODEL.DECODER.NUM_LAYERS
+        )
 
     def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
         # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tensor
@@ -65,14 +73,14 @@ class TransformerDecoderAdapter(BaseDecoder):
         - logits: (B, T, V)
         '''
         # Since transformer components working with time-first tensor, we should transpose the shape first
-        tgt = self.text_embedding(tgt)              # [B, S, E]
+        tgt = self.in_embed(tgt)              # [B, S, E]
         tgt = tgt.transpose(0, 1)                   # [S, B, E]
         memory = memory.transpose(0, 1)             # [T, B, E]
         tgt_mask = generate_square_subsequent_mask(tgt.size(0)).to(memory.device)
         memory_mask = None
         output = self.decoder(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask)
         output = output.transpose(0, 1)                 # [B, T, E]
-        output = self.text_classifier(output)           # [B, T, V]
+        output = self.out_embed(output)           # [B, T, V]
         return output
 
     @torch.jit.export
@@ -106,30 +114,33 @@ class TransformerDecoderAdapter(BaseDecoder):
 
 class AttentionLSTMDecoder(BaseDecoder):
 
-    def __init__(self, text_embedding, text_classifier, lstm, attention, teacher_forcing=False):
-        # type: (nn.Module, nn.Module, nn.LSTMCell, Attention, bool) -> None
-        super(AttentionLSTMDecoder, self).__init__(text_embedding, text_classifier)
-        self.lstm = lstm
-        self.attention = attention
-        self.teacher_forcing = teacher_forcing
+    def __init__(self, cfg: Config):
+        super(AttentionLSTMDecoder, self).__init__()
+        self.in_embed, self.out_embed = self.build_embedding(cfg)
+        self.lstm = nn.LSTMCell(cfg.MODEL.TEXT_EMBED.EMBED_SIZE + cfg.MODEL.DECODER.HIDDEN_SIZE,
+                                cfg.MODEL.DECODER.HIDDEN_SIZE)
+        self.attention = DotProductAttention(scaled=True)
+        self.teacher_forcing = cfg.MODEL.DECODER.TEACHER_FORCING
 
     def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
         # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tuple[Tensor, Tensor]
         '''
         memory: (B, T, E)
-        tgt: (B, T, V)
+        tgt: (B, T, V)  -> fix to (B, T)
         '''
         hidden, cell = self._init_hidden(memory.size(0), memory.device)
         outputs = []
+
+        # tgt = tgt.argmax(-1)        # B, T
         for t in range(tgt.size(1)):
             context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
-            context = context.squeeze(1)                                            # B, E
+            context = context.squeeze(1)                                            # B, H
             if self.teacher_forcing or t == 0:
-                inputs = torch.cat([context, tgt[:, t]], dim=-1)                        # B, E + V
+                inputs = torch.cat((context, self.in_embed(tgt[:, t])), dim=-1)     # B, H + E
             else:
-                inputs = torch.cat([context, F.softmax(outputs[-1], dim=-1)], dim=-1)   # B, E + V
+                inputs = torch.cat((context, hidden), dim=-1)   # B, E + V
             hidden, cell = self.lstm(inputs, (hidden, cell))                            # B, H
-            output = self.text_classifier(hidden)                                       # B, V
+            output = self.out_embed(hidden)                                       # B, V
             outputs.append(output)
         outputs = torch.stack(outputs, dim=1)
         return outputs
@@ -162,11 +173,11 @@ class AttentionLSTMDecoder(BaseDecoder):
             context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
             context = context.squeeze(1)                                            # B, E
             if t == 0:
-                inputs = torch.cat([context, sos_onehot], dim=-1)                   # B, E + V
+                inputs = torch.cat((context, self.in_embed(sos_onehot)), dim=-1)                   # B, E + V
             else:
-                inputs = torch.cat([context, outputs[-1]], dim=-1)                  # B, E + V
+                inputs = torch.cat((context, hidden), dim=-1)                  # B, E + V
             hidden, cell = self.lstm(inputs, (hidden, cell))                        # B, H
-            output = self.text_classifier(hidden)                                   # B, V
+            output = self.out_embed(hidden)                                   # B, V
             output = F.softmax(output, dim=-1)                                      # B, V
             outputs.append(output)
 
@@ -184,7 +195,7 @@ class AttentionLSTMDecoder(BaseDecoder):
 
 class VisualLSTMDecoder(BaseDecoder):
     def __init__(self, cfg: Config):
-        super().__init__(None, None)
+        super().__init__()
         self.lstm = nn.LSTM(
             cfg.MODEL.DECODER.INPUT_SIZE,
             cfg.MODEL.DECODER.HIDDEN_SIZE,

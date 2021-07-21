@@ -1,7 +1,6 @@
 from typing import Optional
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
@@ -9,7 +8,6 @@ from torch import Tensor
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from .base import BaseModel
-from .layers.attention import DotProductAttention
 from .layers.sequence_decoder import (AttentionLSTMDecoder, BaseDecoder,
                                       TransformerDecoderAdapter)
 from .layers.sequence_encoder import BaseEncoder
@@ -27,8 +25,8 @@ class GeneralizedConvSeq2Seq(BaseModel):
         self.encoder = self.build_encoder(cfg)
         self.decoder = self.build_decoder(cfg)
 
-        sos_onehot = F.one_hot(torch.tensor([cfg.MODEL.DECODER.SOS_IDX]), cfg.MODEL.DECODER.VOCAB_SIZE).float()
-        eos_onehot = F.one_hot(torch.tensor([cfg.MODEL.DECODER.EOS_IDX]), cfg.MODEL.DECODER.VOCAB_SIZE).float()
+        sos_onehot = F.one_hot(torch.tensor([cfg.MODEL.TEXT_EMBED.SOS_IDX]), cfg.MODEL.TEXT_EMBED.VOCAB_SIZE).float()
+        eos_onehot = F.one_hot(torch.tensor([cfg.MODEL.TEXT_EMBED.EOS_IDX]), cfg.MODEL.TEXT_EMBED.VOCAB_SIZE).float()
 
         self.register_buffer('sos_onehot', sos_onehot)
         self.register_buffer('eos_onehot', eos_onehot)
@@ -46,23 +44,10 @@ class GeneralizedConvSeq2Seq(BaseModel):
     def build_decoder(self, cfg: Config) -> BaseDecoder:
         cfg_node = cfg.MODEL.DECODER
         if cfg_node.TYPE == 'tf_decoder':
-            decoder = TransformerDecoderAdapter(
-                text_embedding=nn.Linear(cfg_node.VOCAB_SIZE, cfg_node.D_MODEL),
-                text_classifier=nn.Linear(cfg_node.D_MODEL, cfg_node.VOCAB_SIZE),
-                decoder=nn.TransformerDecoder(
-                    nn.TransformerDecoderLayer(cfg_node.D_MODEL, cfg_node.NUM_HEADS),
-                    cfg_node.NUM_LAYERS
-                ),
-            )
+            decoder = TransformerDecoderAdapter(cfg)
             return decoder
         elif cfg_node.TYPE == 'attn_lstm':
-            decoder = AttentionLSTMDecoder(
-                text_embedding=nn.Linear(cfg_node.VOCAB_SIZE, cfg_node.HIDDEN_SIZE),
-                text_classifier=nn.Linear(cfg_node.HIDDEN_SIZE, cfg_node.VOCAB_SIZE),
-                lstm=nn.LSTMCell(cfg_node.VOCAB_SIZE + cfg_node.HIDDEN_SIZE, cfg_node.HIDDEN_SIZE),
-                attention=DotProductAttention(scaled=True),
-                teacher_forcing=False,
-            )
+            decoder = AttentionLSTMDecoder(cfg)
             return decoder
 
         raise ValueError(f'Decoder type = {cfg_node.TYPE} is not supported')

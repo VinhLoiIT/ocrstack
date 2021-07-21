@@ -47,10 +47,12 @@ def resnet18_transformer(pretrained: bool, vocab, d_model, nhead, num_layers, ma
     cfg.MODEL.DECODER.NUM_HEADS = nhead
     cfg.MODEL.DECODER.NUM_LAYERS = num_layers
     cfg.MODEL.DECODER.MAX_LENGTH = max_length
-    cfg.MODEL.DECODER.VOCAB_SIZE = len(vocab)
-    cfg.MODEL.DECODER.SOS_IDX = vocab.SOS_IDX
-    cfg.MODEL.DECODER.EOS_IDX = vocab.EOS_IDX
-    cfg.MODEL.DECODER.PAD_IDX = vocab.PAD_IDX
+
+    cfg.MODEL.TEXT_EMBED.EMBED_SIZE = d_model
+    cfg.MODEL.TEXT_EMBED.VOCAB_SIZE = len(vocab)
+    cfg.MODEL.TEXT_EMBED.SOS_IDX = vocab.SOS_IDX
+    cfg.MODEL.TEXT_EMBED.EOS_IDX = vocab.EOS_IDX
+    cfg.MODEL.TEXT_EMBED.PAD_IDX = vocab.PAD_IDX
 
     model = GeneralizedConvSeq2Seq(
         cfg,
@@ -70,10 +72,13 @@ def resnet18_attn_lstm(pretrained: bool, vocab, hidden_size, max_length):
     cfg.MODEL.DECODER.TYPE = 'attn_lstm'
     cfg.MODEL.DECODER.HIDDEN_SIZE = hidden_size
     cfg.MODEL.DECODER.MAX_LENGTH = max_length
-    cfg.MODEL.DECODER.VOCAB_SIZE = len(vocab)
-    cfg.MODEL.DECODER.SOS_IDX = vocab.SOS_IDX
-    cfg.MODEL.DECODER.EOS_IDX = vocab.EOS_IDX
-    cfg.MODEL.DECODER.PAD_IDX = vocab.PAD_IDX
+    cfg.MODEL.DECODER.TEACHER_FORCING = False
+
+    cfg.MODEL.TEXT_EMBED.EMBED_SIZE = hidden_size
+    cfg.MODEL.TEXT_EMBED.VOCAB_SIZE = len(vocab)
+    cfg.MODEL.TEXT_EMBED.SOS_IDX = vocab.SOS_IDX
+    cfg.MODEL.TEXT_EMBED.EOS_IDX = vocab.EOS_IDX
+    cfg.MODEL.TEXT_EMBED.PAD_IDX = vocab.PAD_IDX
 
     model = GeneralizedConvSeq2Seq(
         cfg,
