@@ -193,7 +193,6 @@ class VisualLSTMDecoder(BaseDecoder):
             cfg.MODEL.DECODER.BATCH_FIRST,
             cfg.MODEL.DECODER.DROPOUT,
             cfg.MODEL.DECODER.BIDIRECTIONAL,
-            cfg.MODEL.DECODER.PROJ_SIZE,
         )
 
         NUM_DIRECTIONS = 2 if cfg.MODEL.DECODER.BIDIRECTIONAL else 1

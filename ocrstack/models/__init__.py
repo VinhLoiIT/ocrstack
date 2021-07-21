@@ -23,7 +23,6 @@ def resnet18_lstm_ctc(pretrained: bool, vocab):
     cfg.MODEL.DECODER.BATCH_FIRST = True
     cfg.MODEL.DECODER.DROPOUT = 0.1
     cfg.MODEL.DECODER.BIDIRECTIONAL = True
-    cfg.MODEL.DECODER.PROJ_SIZE = 0
 
     cfg.MODEL.DECODER.BLANK_IDX = vocab.BLANK_IDX
 
