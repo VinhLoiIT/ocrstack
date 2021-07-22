@@ -66,11 +66,11 @@ def trainer_ctc(device):
     trainer.train(train_loader)
 
 
-def trainer_seq2seq(device):
+def trainer_seq2seq(device, model, *args, **kwargs):
     vocab = Seq2SeqVocab(list('12345678'))
     vocab_size = len(vocab)
 
-    model = resnet18_transformer(False, vocab, d_model=512, nhead=8, num_layers=1, max_length=20)
+    model = model(vocab=vocab, *args, **kwargs)
 
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
     config = TrainerConfig(
@@ -101,39 +101,6 @@ def trainer_seq2seq(device):
     trainer.train(train_loader)
 
 
-def trainer_conv_attn_rnn(device):
-    vocab = Seq2SeqVocab(list('12345678'))
-    model = resnet18_attn_lstm(False, vocab, hidden_size=512, max_length=5)
-
-    optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
-    config = TrainerConfig(
-        batch_size=2,
-        lr=1e-4,
-        device=device,
-        iter_train=2,
-        iter_eval=1,
-        iter_visualize=1,
-        num_iter_visualize=1,
-    )
-
-    dataset = DummyDataset(10, 3, 64, 256, 5, len(vocab), seq2seq=True)
-
-    batch_collator = BatchCollator(
-        BatchPadImages(0.),
-        BatchPadTexts(vocab.PAD_IDX),
-    )
-
-    train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
-                              collate_fn=batch_collator)
-
-    val_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
-                            collate_fn=batch_collator)
-
-    evaluator = Evaluator(model, val_loader, config.device)
-    trainer = Trainer(model, optimizer, config, evaluator=evaluator)
-    trainer.train(train_loader)
-
-
 def test_trainer_ctc_cpu():
     trainer_ctc('cpu')
 
@@ -143,19 +110,19 @@ def test_trainer_ctc_gpu():
     trainer_ctc('cuda')
 
 
-def test_trainer_seq2seq_cpu():
-    trainer_seq2seq('cpu')
+def test_trainer_resnet18_transformer_cpu():
+    trainer_seq2seq('cpu', resnet18_transformer, pretrained=False, d_model=512, nhead=8, num_layers=1, max_length=20)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='cuda is not available')
 def test_trainer_seq2seq_gpu():
-    trainer_seq2seq('cuda')
+    trainer_seq2seq('cuda', resnet18_transformer, pretrained=False, d_model=512, nhead=8, num_layers=1, max_length=20)
 
 
 def test_trainer_conv_attn_rnn_cpu():
-    trainer_conv_attn_rnn('cpu')
+    trainer_seq2seq('cpu', resnet18_attn_lstm, pretrained=False, hidden_size=512, max_length=5)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='cuda is not available')
 def test_trainer_conv_attn_rnn_gpu():
-    trainer_conv_attn_rnn('cuda')
+    trainer_seq2seq('cuda', resnet18_attn_lstm, pretrained=False, hidden_size=512, max_length=5)
