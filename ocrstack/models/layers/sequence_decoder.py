@@ -93,13 +93,12 @@ class TransformerDecoderAdapter(BaseDecoder):
 
     @torch.jit.export
     def decode(self, memory, max_length, memory_key_padding_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        # type: (Tensor, int, Optional[Tensor]) -> Tensor
         batch_size = memory.size(0)
         inputs = torch.empty(batch_size, 1, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
         outputs = []
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
-        lengths = torch.ones(batch_size, dtype=torch.long).fill_(max_length)
-        for t in range(max_length):
+        for _ in range(max_length):
             text = self.forward(memory, inputs, memory_key_padding_mask)        # [B, T, V]
             output = F.softmax(text[:, -1], dim=-1)                             # [B, V]
             outputs.append(output)                                              # [[B, V]]
@@ -110,13 +109,12 @@ class TransformerDecoderAdapter(BaseDecoder):
             output = output.squeeze(1)               # [B]
             current_end = output == self.eos_idx     # [B]
             current_end = current_end.cpu()
-            lengths.masked_fill_(~end_flag & current_end, t + 1)
             end_flag |= current_end
             if end_flag.all():
                 break
 
         outputs = torch.stack(outputs, dim=1)                                   # [B, T, V]
-        return outputs, lengths  # remove <sos>
+        return outputs
 
 
 class AttentionLSTMDecoder(BaseDecoder):
@@ -161,7 +159,7 @@ class AttentionLSTMDecoder(BaseDecoder):
 
     @torch.jit.export
     def decode(self, memory, max_length, memory_key_padding_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        # type: (Tensor, int, Optional[Tensor]) -> Tensor
         '''
         memory: (B, T, E)
         '''
@@ -171,7 +169,6 @@ class AttentionLSTMDecoder(BaseDecoder):
         outputs = []
 
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
-        lengths = torch.ones(batch_size, dtype=torch.long).fill_(max_length)
         for t in range(max_length):
             context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
             context = context.squeeze(1)                                            # B, E
@@ -188,12 +185,11 @@ class AttentionLSTMDecoder(BaseDecoder):
             output = output.argmax(-1)               # [B]
             current_end = output == self.eos_idx     # [B]
             current_end = current_end.cpu()
-            lengths.masked_fill_(~end_flag & current_end, t + 1)
             end_flag |= current_end
             if end_flag.all():
                 break
         outputs = torch.stack(outputs, dim=1)
-        return outputs, lengths
+        return outputs
 
 
 class VisualLSTMDecoder(BaseDecoder):

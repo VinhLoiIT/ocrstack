@@ -51,8 +51,8 @@ class GeneralizedConvSeq2Seq(BaseModel):
             param.requires_grad_(False)
 
     def predict(self, batch: Batch):
-        predicts, lengths = self.forward(batch.images)
-        chars, probs = self.string_decode(predicts, lengths - 1)
+        predicts = self.forward(batch.images)
+        chars, probs = self.string_decode(predicts)
         return chars, probs
 
     def train_batch(self, batch: Batch):
@@ -90,5 +90,5 @@ class GeneralizedConvSeq2Seq(BaseModel):
             loss = self.compute_loss(logits, text[:, 1:], lengths - 1)
             return loss
         else:
-            predicts, lengths = self.decoder.decode(images, self.max_length, image_padding_mask)
-            return predicts, lengths
+            predicts = self.decoder.decode(images, self.max_length, image_padding_mask)
+            return predicts

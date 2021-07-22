@@ -40,16 +40,14 @@ class Seq2SeqGreedyDecoder(StringDecoder):
         super().__init__(vocab)
         self.keep_eos = keep_eos
 
-    def forward(self, predicts, lengths):
+    def forward(self, predicts):
         # type: (torch.Tensor, List[int]) -> Tuple[List[str], List[float]]
         '''
         Shapes:
         -------
         - predicts: (B, T, V)
         '''
-        if not self.keep_eos:
-            lengths -= 1
-        return seq2seq_greedy_decoder(predicts, lengths, self.vocab)
+        return seq2seq_greedy_decoder(predicts, self.vocab, self.keep_eos)
 
 
 class Seq2SeqBeamsearchDecoder(StringDecoder):
@@ -95,12 +93,28 @@ def ctc_beamsearch_decoder(predicts: torch.Tensor, vocab: CTCVocab, beamsize: in
     raise NotImplementedError()
 
 
-def seq2seq_greedy_decoder(predicts: torch.Tensor, lengths: List[int], vocab: Seq2SeqVocab):
+def seq2seq_greedy_decoder(predicts: torch.Tensor, vocab: Seq2SeqVocab, keep_eos: bool = False):
+    '''
+    Arguments:
+    ----------
+    predicts: [B, T, V]
+    '''
+    predicts = predicts.cpu()
+
     probs, indices = predicts.max(dim=-1)  # [B, T]
     char_probs: List[List[float]] = []
     strings: List[str] = []
-    for probs_, indices_, length in zip(probs.cpu().tolist(), indices.cpu().tolist(), lengths):
-        strings.append(''.join(map(vocab.int2char, indices_[:length])))
-        char_probs.append(probs_[:length])
+
+    eos_pos = (indices == vocab.EOS_IDX).max(-1)[1]        # [B]
+
+    for probs_, indices_, length in zip(probs.tolist(), indices.tolist(), eos_pos):
+        if keep_eos:
+            s = ''.join(map(vocab.int2char, indices_[:length + 1]))
+            p = probs_[:length + 1]
+        else:
+            s = ''.join(map(vocab.int2char, indices_[:length]))
+            p = probs_[:length]
+        strings.append(s)
+        char_probs.append(p)
 
     return strings, char_probs

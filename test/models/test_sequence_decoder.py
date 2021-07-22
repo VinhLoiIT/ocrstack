@@ -28,8 +28,6 @@ def test_transformer_decoder_adapter_decode():
 
     decoder.eval()
     output = decoder.decode(src, 10)
-    assert isinstance(output, tuple)
-
     output = decoder.forward(src, tgt)
     assert output.shape == torch.Size([B, T, cfg.MODEL.TEXT_EMBED.VOCAB_SIZE])
 
