@@ -17,6 +17,8 @@ def test_transformer_decoder_adapter_decode():
     cfg.MODEL.TEXT_EMBED.SOS_IDX = 0
     cfg.MODEL.TEXT_EMBED.EOS_IDX = 1
     cfg.MODEL.TEXT_EMBED.PAD_IDX = 2
+    cfg.MODEL.TEXT_EMBED.OUT_BIAS = False
+    cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT = True
 
     decoder = TransformerDecoderAdapter(cfg)
 
@@ -44,6 +46,8 @@ def test_attention_lstm_decoder_forward():
     cfg.MODEL.TEXT_EMBED.SOS_IDX = 0
     cfg.MODEL.TEXT_EMBED.EOS_IDX = 1
     cfg.MODEL.TEXT_EMBED.PAD_IDX = 2
+    cfg.MODEL.TEXT_EMBED.OUT_BIAS = False
+    cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT = True
 
     model = AttentionLSTMDecoder(cfg)
 

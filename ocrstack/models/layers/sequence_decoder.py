@@ -39,10 +39,16 @@ class BaseDecoder(nn.Module):
     def build_embedding(self, cfg: Config) -> Tuple[nn.Module, nn.Module]:
         out_embed = nn.Linear(cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
                               cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
-                              bias=False)
+                              bias=cfg.MODEL.TEXT_EMBED.OUT_BIAS)
+
+        shared_weight = None
+        if cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT:
+            shared_weight = out_embed.weight
+
         in_embed = nn.Embedding(cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
                                 cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
-                                cfg.MODEL.TEXT_EMBED.PAD_IDX)
+                                cfg.MODEL.TEXT_EMBED.PAD_IDX,
+                                _weight=shared_weight)
         return in_embed, out_embed
 
 

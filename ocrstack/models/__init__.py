@@ -53,6 +53,8 @@ def resnet18_transformer(pretrained: bool, vocab, d_model, nhead, num_layers, ma
     cfg.MODEL.TEXT_EMBED.SOS_IDX = vocab.SOS_IDX
     cfg.MODEL.TEXT_EMBED.EOS_IDX = vocab.EOS_IDX
     cfg.MODEL.TEXT_EMBED.PAD_IDX = vocab.PAD_IDX
+    cfg.MODEL.TEXT_EMBED.OUT_BIAS = False
+    cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT = True
 
     model = GeneralizedConvSeq2Seq(
         cfg,
@@ -79,6 +81,8 @@ def resnet18_attn_lstm(pretrained: bool, vocab, hidden_size, max_length):
     cfg.MODEL.TEXT_EMBED.SOS_IDX = vocab.SOS_IDX
     cfg.MODEL.TEXT_EMBED.EOS_IDX = vocab.EOS_IDX
     cfg.MODEL.TEXT_EMBED.PAD_IDX = vocab.PAD_IDX
+    cfg.MODEL.TEXT_EMBED.OUT_BIAS = False
+    cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT = True
 
     model = GeneralizedConvSeq2Seq(
         cfg,
