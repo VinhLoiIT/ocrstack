@@ -1,3 +1,4 @@
+from ocrstack.config.config import Config
 import pytest
 import torch
 import torchinfo
@@ -5,7 +6,7 @@ from ocrstack.data.collate import BatchCollator
 from ocrstack.data.dataset import DummyDataset
 from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab
 from ocrstack.engine.evaluator import Evaluator
-from ocrstack.engine.trainer import Trainer, TrainerConfig
+from ocrstack.engine.trainer import Trainer
 from ocrstack.models import (resnet18_attn_lstm, resnet18_lstm_ctc,
                              resnet18_transformer)
 from ocrstack.transforms.image import BatchPadImages
@@ -33,20 +34,40 @@ def test_log_info():
                       ])
 
 
+def simple_trainer_config(device):
+    cfg = Config()
+    cfg.TRAINER.BATCH_SIZE = 2
+    cfg.TRAINER.LEARNING_RATE = 1e-4
+    cfg.TRAINER.DEVICE = device
+    cfg.TRAINER.CLIP_GRAD_VALUE = 0.5
+
+    cfg.TRAINER.ITER_TRAIN = 2
+    cfg.TRAINER.ITER_EVAL = 1
+    cfg.TRAINER.ITER_VISUALIZE = 1
+    cfg.TRAINER.NUM_ITER_VISUALIZE = 1
+    cfg.TRAINER.NUM_WORKERS = 2
+    cfg.TRAINER.NUM_ITER_WARMUP = 2
+
+    cfg.TRAINER.SEED = 0
+    cfg.TRAINER.USE_AMP = False
+    cfg.TRAINER.LOG_DIR = 'runs'
+    cfg.TRAINER.LOG_INTERVAL = 10
+    cfg.TRAINER.MONITOR_METRIC = 'CER'
+    cfg.TRAINER.MONITOR_METRIC_TYPE = 'lower'
+    cfg.TRAINER.PRETRAINED_WEIGHT = None
+    cfg.TRAINER.PRETRAINED_CONFIG = None
+    cfg.TRAINER.RESUME_CHECKPOINT = None
+    cfg.TRAINER.CONTINUE_TRAINING = False
+
+    return cfg
+
+
 def trainer_ctc(device):
     vocab = CTCVocab(list('12345678'))
     vocab_size = len(vocab)
     model = resnet18_lstm_ctc(pretrained=False, vocab=vocab)
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
-    config = TrainerConfig(
-        batch_size=2,
-        lr=1e-4,
-        device=device,
-        iter_train=2,
-        iter_eval=1,
-        iter_visualize=1,
-        num_iter_visualize=1,
-    )
+    cfg = simple_trainer_config(device)
 
     dataset = DummyDataset(10, 3, 64, 256, 5, vocab_size)
 
@@ -55,14 +76,14 @@ def trainer_ctc(device):
         BatchPadTexts(0.),
     )
 
-    train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
+    train_loader = DataLoader(dataset, cfg.TRAINER.BATCH_SIZE, num_workers=cfg.TRAINER.NUM_WORKERS,
                               collate_fn=batch_collator)
 
-    val_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
+    val_loader = DataLoader(dataset, cfg.TRAINER.BATCH_SIZE, num_workers=cfg.TRAINER.NUM_WORKERS,
                             collate_fn=batch_collator)
 
-    evaluator = Evaluator(model, val_loader, config.device)
-    trainer = Trainer(model, optimizer, config, evaluator=evaluator)
+    evaluator = Evaluator(model, val_loader, cfg.TRAINER.DEVICE)
+    trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
     trainer.train(train_loader)
 
 
@@ -73,15 +94,7 @@ def trainer_seq2seq(device, model, *args, **kwargs):
     model = model(vocab=vocab, *args, **kwargs)
 
     optimizer = optim.RMSprop(model.parameters(), lr=1e-3)
-    config = TrainerConfig(
-        batch_size=2,
-        lr=1e-4,
-        device=device,
-        iter_train=2,
-        iter_eval=1,
-        iter_visualize=1,
-        num_iter_visualize=1,
-    )
+    cfg = simple_trainer_config(device)
 
     dataset = DummyDataset(10, 3, 64, 256, 5, vocab_size, seq2seq=True)
 
@@ -90,14 +103,14 @@ def trainer_seq2seq(device, model, *args, **kwargs):
         BatchPadTexts(vocab.PAD_IDX),
     )
 
-    train_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
+    train_loader = DataLoader(dataset, cfg.TRAINER.BATCH_SIZE, num_workers=cfg.TRAINER.NUM_WORKERS,
                               collate_fn=batch_collator)
 
-    val_loader = DataLoader(dataset, config.batch_size, num_workers=config.num_workers,
+    val_loader = DataLoader(dataset, cfg.TRAINER.BATCH_SIZE, num_workers=cfg.TRAINER.NUM_WORKERS,
                             collate_fn=batch_collator)
 
-    evaluator = Evaluator(model, val_loader, config.device)
-    trainer = Trainer(model, optimizer, config, evaluator=evaluator)
+    evaluator = Evaluator(model, val_loader, cfg.TRAINER.DEVICE)
+    trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
     trainer.train(train_loader)
 
 

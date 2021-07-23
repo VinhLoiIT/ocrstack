@@ -18,30 +18,6 @@ from .evaluator import Evaluator
 from .visualizer import Visualizer
 
 
-@dataclass
-class TrainerConfig(Config):
-    batch_size: int
-    lr: float
-    device: str
-    iter_train: int
-    iter_eval: int
-    iter_visualize: int
-    num_iter_visualize: int
-    num_iter_warmup: int = 2
-    seed: int = 0
-    num_workers: int = 2
-    log_dir: Path = 'runs'
-    log_interval: int = 10
-    monitor_metric: str = 'CER'
-    monitor_metric_type: str = 'lower'
-    pretrained_weight: Optional[Path] = None
-    pretrained_config: Optional[Path] = None
-    resume_checkpoint: Optional[Path] = None
-    continue_training: bool = False
-    use_amp: bool = False
-    clip_grad_value: float = 0.5
-
-
 class Trainer(object):
 
     '''
@@ -51,7 +27,7 @@ class Trainer(object):
     def __init__(self,
                  model: BaseModel,
                  optimizer: optim.Optimizer,
-                 config: TrainerConfig,
+                 cfg: Config,
                  lr_scheduler=None,
                  evaluator: Union[Evaluator, List[Evaluator]] = [],
                  visualizer: Visualizer = None,
@@ -61,8 +37,8 @@ class Trainer(object):
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-        self.config = config
-        self.grad_scaler = torch.cuda.amp.GradScaler(enabled=config.use_amp)
+        self.cfg = cfg
+        self.grad_scaler = torch.cuda.amp.GradScaler(enabled=cfg.TRAINER.USE_AMP)
         if isinstance(evaluator, Evaluator):
             self.evaluators = [evaluator]
         else:
@@ -76,59 +52,59 @@ class Trainer(object):
         self.checkpoint_callback = checkpoint_callback
         self.visualizer = visualizer
         if logger is None:
-            self.logger = ConsoleLogger(config.log_interval, name='Trainer')
+            self.logger = ConsoleLogger(cfg.TRAINER.LOG_INTERVAL, name='Trainer')
         else:
             self.logger = logger
 
     def train_step(self, batch: Batch):
-        batch = batch.to(self.config.device)
+        batch = batch.to(self.cfg.TRAINER.DEVICE)
         loss = self.model.train_batch(batch)
         self.optimizer.zero_grad()
         self.grad_scaler.scale(loss).backward()
         self.grad_scaler.unscale_(self.optimizer)
-        clip_grad_value_(self.model.parameters(), self.config.clip_grad_value)
+        clip_grad_value_(self.model.parameters(), self.cfg.TRAINER.CLIP_GRAD_VALUE)
         self.grad_scaler.step(self.optimizer)
         self.grad_scaler.update()
         return loss.item()
 
     def train(self, train_loader: DataLoader):
-        self.model.to(self.config.device)
+        self.model.to(self.cfg.TRAINER.DEVICE)
         self.model.train()
 
         self.logger.open()
-        self.logger.log_model(self.model, self.config.device)
+        self.logger.log_model(self.model, self.cfg.TRAINER.DEVICE)
 
         self._save_config()
         self._warmup(train_loader)
 
         self.num_iteration = 0
         self.epoch = 0
-        logging.info(f'Start training for {self.config.iter_train} iteration(s)')
-        while self.num_iteration < self.config.iter_train:
+        logging.info(f'Start training for {self.cfg.TRAINER.ITER_TRAIN} iteration(s)')
+        while self.num_iteration < self.cfg.TRAINER.ITER_TRAIN:
             loss_meter = self.train_metrics['Loss']
             for i, batch in enumerate(train_loader):
-                with torch.cuda.amp.autocast(enabled=self.config.use_amp):
+                with torch.cuda.amp.autocast(enabled=self.cfg.TRAINER.USE_AMP):
                     loss = self.train_step(batch)
                 loss_meter.update(loss, len(batch))
                 self.num_iteration += 1
 
                 self.logger.log_scalar('Train/Loss', loss, self.num_iteration)
-                if self.num_iteration % self.config.log_interval == 0:
+                if self.num_iteration % self.cfg.TRAINER.LOG_INTERVAL == 0:
                     loss_meter.reset()
 
-                if self.visualizer is not None and self.num_iteration % self.config.iter_visualize == 0:
+                if self.visualizer is not None and self.num_iteration % self.cfg.TRAINER.ITER_VISUALIZE == 0:
                     self.model.eval()
                     logging.info('Visualizing training process')
                     self.visualizer.visualize()
                     self.model.train()
 
                 train_metrics = {name: m.compute() for name, m in self.train_metrics.items()}
-                if len(self.evaluators) > 0 and self.num_iteration % self.config.iter_eval == 0:
+                if len(self.evaluators) > 0 and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
                     val_metrics = [evaluator.eval() for evaluator in self.evaluators]
                     if self.checkpoint_callback is not None:
                         self.checkpoint_callback(self.state_dict(), train_metrics, val_metrics)
                     self.model.train()
-                if self.num_iteration >= self.config.iter_train:
+                if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
                     break
 
             self.epoch += 1
@@ -153,18 +129,18 @@ class Trainer(object):
         self.num_iteration = state_dict['num_iteration']
 
     def _save_config(self):
-        config_path = Path(self.config.log_dir, 'trainer_config.yaml')
+        config_path = Path(self.cfg.TRAINER.LOG_DIR, 'trainer_config.yaml')
         logging.info(f'Save config to {config_path}')
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config.to_yaml(config_path)
+        self.cfg.TRAINER.to_yaml(config_path)
 
     def _warmup(self, train_loader):
-        logging.info(f'Warmup trainer for {self.config.num_iter_warmup} iteration(s)')
+        logging.info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
         self.model.train()
-        if self.config.num_iter_warmup > 0:
+        if self.cfg.TRAINER.NUM_ITER_WARMUP > 0:
             for i, batch in enumerate(train_loader):
                 self.train_step(batch)
                 logging.debug(f'Warmed {i + 1} iteration(s)')
-                if i + 1 == self.config.num_iter_warmup:
+                if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
                     break
         logging.info('Warmup trainer finished')
