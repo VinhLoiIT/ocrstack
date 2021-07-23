@@ -98,17 +98,22 @@ def seq2seq_translate(predicts: torch.Tensor,
     predicts = predicts.cpu()
 
     probs, indices = predicts.max(dim=-1)                   # [B, T]
-    sos_pos = (indices == vocab.SOS_IDX).max(-1)[1]         # [B]
-    eos_pos = (indices == vocab.EOS_IDX).max(-1)[1]         # [B]
 
-    # TODO: check SOS, EOS not in predicts
+    sos_mask = indices == vocab.SOS_IDX                     # [B, T]
+    eos_mask = indices == vocab.EOS_IDX                     # [B, T]
+
+    sos_pos = sos_mask.max(-1)[1]                           # [B]
+    eos_pos = eos_mask.max(-1)[1]                           # [B]
+
     # TODO: implement keep_pad
 
     if not keep_sos:
         sos_pos += 1
+    sos_pos.masked_fill_(torch.bitwise_not(torch.any(sos_mask, dim=-1)), 0)
 
     if keep_eos:
         eos_pos += 1
+    eos_pos.masked_fill_(torch.bitwise_not(torch.any(eos_mask, dim=-1)), predicts.size(1))
 
     char_probs: List[List[float]] = []
     strings: List[str] = []

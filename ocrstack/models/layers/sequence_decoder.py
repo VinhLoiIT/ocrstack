@@ -96,13 +96,13 @@ class TransformerDecoderAdapter(BaseDecoder):
         # type: (Tensor, int, Optional[Tensor]) -> Tensor
         batch_size = memory.size(0)
         inputs = torch.empty(batch_size, 1, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
-        outputs = []
+        outputs = [F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)]
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         for _ in range(max_length):
             text = self.forward(memory, inputs, memory_key_padding_mask)        # [B, T, V]
-            output = F.softmax(text[:, -1], dim=-1)                             # [B, V]
-            outputs.append(output)                                              # [[B, V]]
-            output = output.argmax(-1, keepdim=True)                            # [B, 1]
+            output = F.softmax(text[:, [-1]], dim=-1)                           # [B, 1, V]
+            outputs.append(output)                                              # [[B, 1, V]]
+            output = output.argmax(-1, keepdim=False)                           # [B, 1]
             inputs = torch.cat((inputs, output), dim=1)                         # [B, T + 1]
 
             # set flag for early break
@@ -113,7 +113,7 @@ class TransformerDecoderAdapter(BaseDecoder):
             if end_flag.all():
                 break
 
-        outputs = torch.stack(outputs, dim=1)                                   # [B, T, V]
+        outputs = torch.cat(outputs, dim=1)                                   # [B, T, V]
         return outputs
 
 
@@ -166,7 +166,7 @@ class AttentionLSTMDecoder(BaseDecoder):
         batch_size = memory.size(0)
         hidden, cell = self._init_hidden(batch_size, memory.device)
         inputs = torch.empty(batch_size, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
-        outputs = []
+        outputs = [F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)]
 
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         for t in range(max_length):
