@@ -14,12 +14,11 @@ from .layers.string_decoder import StringDecoder
 
 class GeneralizedCRNN(BaseModel):
 
-    def __init__(self, cfg: Config, string_decoder: StringDecoder):
+    def __init__(self, cfg: Config):
         super().__init__(cfg)
         self.backbone = self.build_backbone(cfg)
         self.encoder = self.build_encoder(cfg)
         self.decoder = self.build_decoder(cfg)
-        self.string_decoder = string_decoder
         self.BLANK_IDX = cfg.MODEL.DECODER.BLANK_IDX
         self.batch_first = cfg.MODEL.DECODER.BATCH_FIRST
 
@@ -40,9 +39,9 @@ class GeneralizedCRNN(BaseModel):
         raise ValueError(f'Unsupported decoder type = {cfg_node.TYPE}')
 
     def predict(self, batch: Batch):
-        outputs, _ = self.forward(batch.images)
-        chars, probs = self.string_decoder(outputs)
-        return chars, probs
+        outputs = self.forward(batch.images)
+        outputs = F.softmax(outputs, dim=-1)
+        return outputs
 
     def train_batch(self, batch: Batch):
         logits = self.forward(batch.images, batch.text, batch.lengths)
@@ -71,4 +70,4 @@ class GeneralizedCRNN(BaseModel):
             loss = self.compute_loss(outputs, text, out_lengths, lengths)
             return loss
         else:
-            return outputs, out_lengths
+            return outputs

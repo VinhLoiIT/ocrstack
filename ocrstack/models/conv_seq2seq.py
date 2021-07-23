@@ -17,8 +17,8 @@ from .utils import generate_padding_mask_from_lengths
 
 class GeneralizedConvSeq2Seq(BaseModel):
 
-    def __init__(self, cfg, string_decode):
-        # type: (Config, StringDecoder) -> None
+    def __init__(self, cfg):
+        # type: (Config,) -> None
         super().__init__(cfg)
 
         self.backbone = self.build_backbone(cfg)
@@ -26,7 +26,6 @@ class GeneralizedConvSeq2Seq(BaseModel):
         self.decoder = self.build_decoder(cfg)
 
         self.max_length = cfg.MODEL.DECODER.MAX_LENGTH
-        self.string_decode = string_decode
 
     def build_encoder(self, cfg: Config) -> BaseEncoder:
         cfg_node = cfg.MODEL.ENCODER
@@ -52,8 +51,7 @@ class GeneralizedConvSeq2Seq(BaseModel):
 
     def predict(self, batch: Batch):
         predicts = self.forward(batch.images)
-        chars, probs = self.string_decode(predicts)
-        return chars, probs
+        return predicts
 
     def train_batch(self, batch: Batch):
         logits = self.forward(batch.images, batch.text, batch.lengths)

@@ -2,7 +2,6 @@ from ocrstack.models.conv_rnn import GeneralizedCRNN
 from ocrstack.config.config import Config
 
 from .conv_seq2seq import GeneralizedConvSeq2Seq
-from .layers.string_decoder import CTCGreedyDecoder, Seq2SeqGreedyDecoder
 
 
 def resnet18_lstm_ctc(pretrained: bool, vocab):
@@ -26,10 +25,7 @@ def resnet18_lstm_ctc(pretrained: bool, vocab):
 
     cfg.MODEL.DECODER.BLANK_IDX = vocab.BLANK_IDX
 
-    model = GeneralizedCRNN(
-        cfg,
-        CTCGreedyDecoder(vocab),
-    )
+    model = GeneralizedCRNN(cfg)
 
     return model
 
@@ -56,10 +52,7 @@ def resnet18_transformer(pretrained: bool, vocab, d_model, nhead, num_layers, ma
     cfg.MODEL.TEXT_EMBED.OUT_BIAS = False
     cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT = True
 
-    model = GeneralizedConvSeq2Seq(
-        cfg,
-        Seq2SeqGreedyDecoder(vocab, keep_eos=True),
-    )
+    model = GeneralizedConvSeq2Seq(cfg)
     return model
 
 
@@ -84,8 +77,5 @@ def resnet18_attn_lstm(pretrained: bool, vocab, hidden_size, max_length):
     cfg.MODEL.TEXT_EMBED.OUT_BIAS = False
     cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT = True
 
-    model = GeneralizedConvSeq2Seq(
-        cfg,
-        Seq2SeqGreedyDecoder(vocab, keep_eos=True),
-    )
+    model = GeneralizedConvSeq2Seq(cfg)
     return model
