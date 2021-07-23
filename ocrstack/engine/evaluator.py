@@ -5,6 +5,7 @@ import torch
 from ocrstack.data.collate import Batch
 from ocrstack.metrics.ocr import ACCMeter, CERMeter, WERMeter
 from ocrstack.models.base import BaseModel
+from ocrstack.models.layers.translator import ITranslator
 from torch.utils.data.dataloader import DataLoader
 
 
@@ -17,6 +18,7 @@ class EvaluateInterface:
 class Evaluator(EvaluateInterface):
     def __init__(self,
                  model: BaseModel,
+                 translator: ITranslator,
                  data_loader: DataLoader,
                  device,
                  metrics: Optional[Union[Dict, str]] = 'all',
@@ -37,6 +39,7 @@ class Evaluator(EvaluateInterface):
         else:
             raise ValueError(f'Unknow metrics = "{metrics}". You should pass a dict or "all" or set to None.')
         self.model = model
+        self.translator = translator
         self.data_loader = data_loader
         self.device = device
         self.num_iter_eval = num_iter_eval or float('inf')
@@ -54,6 +57,7 @@ class Evaluator(EvaluateInterface):
             for i, batch in enumerate(self.data_loader):
                 batch = batch.to(self.device)
                 predicts = self.model.predict(batch)
+                predicts = self.translator.translate(predicts)
                 for metric in self.metrics.values():
                     metric.update(predicts, batch)
 

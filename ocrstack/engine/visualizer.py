@@ -3,17 +3,20 @@ from typing import List, Optional, Union
 import torch
 from ocrstack.data.collate import Batch
 from ocrstack.models.base import BaseModel
+from ocrstack.models.layers.translator import ITranslator
 from torch.utils.data.dataloader import DataLoader
 
 
 class Visualizer:
     def __init__(self,
                  model: BaseModel,
+                 translator: ITranslator,
                  data_loader: DataLoader,
                  device,
                  writers: List['BaseWriter'] = [],
                  num_iter_visualize: Optional[int] = None):
         self.model = model
+        self.translator = translator
         self.data_loader = data_loader
         self.device = device
         self.writers = writers
@@ -30,6 +33,7 @@ class Visualizer:
         for i, batch in enumerate(self.data_loader):
             batch = batch.to(self.device)
             model_outputs = self.model.predict(batch)
+            model_outputs = self.translator.translate(model_outputs)
             for writer in self.writers:
                 writer.visualize(batch, model_outputs)
             if (i + 1) >= self.num_iter_visualize:
