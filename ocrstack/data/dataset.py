@@ -59,6 +59,7 @@ class OCRDataset(Dataset):
         with open(text_path, 'rt', encoding=self.encoding) as f:
             raw_text = f.readline().rstrip()
 
+        text = None
         if self.text_transform is not None:
             text = self.text_transform(raw_text)
 
@@ -104,6 +105,7 @@ class CSVDataset(Dataset):
         if self.image_transform is not None:
             image = self.image_transform(image)
 
+        text = None
         if self.text_transform is not None:
             text = self.text_transform(raw_text)
 
