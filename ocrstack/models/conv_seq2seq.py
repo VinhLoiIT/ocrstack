@@ -11,7 +11,6 @@ from .base import BaseModel
 from .layers.sequence_decoder import (AttentionLSTMDecoder, BaseDecoder,
                                       TransformerDecoderAdapter)
 from .layers.sequence_encoder import BaseEncoder
-from .layers.string_decoder import StringDecoder
 from .utils import generate_padding_mask_from_lengths
 
 

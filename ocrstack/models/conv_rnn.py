@@ -9,7 +9,6 @@ from torch import Tensor
 from .base import BaseModel
 from .layers.sequence_decoder import VisualLSTMDecoder
 from .layers.sequence_encoder import PoolColEncoder
-from .layers.string_decoder import StringDecoder
 
 
 class GeneralizedCRNN(BaseModel):
