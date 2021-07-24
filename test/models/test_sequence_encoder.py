@@ -1,21 +1,18 @@
 import torch
-import torch.nn as nn
+from ocrstack.config.config import Config
 from ocrstack.models.layers.sequence_encoder import TransformerEncoderAdapter
 
 
 def test_transformer_encoder_adapter_forward():
-    d_model = 10
-    nhead = 5
-    dim_feedforward = 100
-    batch_size = 2
-    src_length = 4
 
-    tf_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
-    tf_encoder = nn.TransformerEncoder(tf_encoder_layer, 1)
+    cfg = Config()
+    cfg.MODEL.ENCODER.TYPE = 'tf_encoder'
+    cfg.MODEL.ENCODER.D_MODEL = 10
+    cfg.MODEL.ENCODER.NUM_HEADS = 5
+    cfg.MODEL.ENCODER.NUM_LAYERS = 2
+    model = TransformerEncoderAdapter(cfg)
 
-    encoder = TransformerEncoderAdapter(tf_encoder)
-
-    src = torch.rand(batch_size, src_length, d_model)
-
-    output = encoder.forward(src)
-    assert output.shape == torch.Size([batch_size, src_length, d_model])
+    B, S = 2, 4
+    src = torch.rand(B, S, cfg.MODEL.ENCODER.D_MODEL)
+    outputs = model.forward(src)
+    assert outputs.shape == torch.Size([B, S, cfg.MODEL.ENCODER.D_MODEL])

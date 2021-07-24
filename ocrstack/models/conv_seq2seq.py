@@ -10,7 +10,7 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from .base import BaseModel
 from .layers.sequence_decoder import (AttentionLSTMDecoder, BaseDecoder,
                                       TransformerDecoderAdapter)
-from .layers.sequence_encoder import BaseEncoder
+from .layers.sequence_encoder import BaseEncoder, TransformerEncoderAdapter
 from .utils import generate_padding_mask_from_lengths
 
 
@@ -29,7 +29,8 @@ class GeneralizedConvSeq2Seq(BaseModel):
     def build_encoder(self, cfg: Config) -> BaseEncoder:
         cfg_node = cfg.MODEL.ENCODER
         if cfg_node.TYPE == 'tf_encoder':
-            return None
+            encoder = TransformerEncoderAdapter(cfg)
+            return encoder
 
         raise ValueError(f'Encoder type = {cfg_node.TYPE} is not supported')
 

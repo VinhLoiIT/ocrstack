@@ -38,6 +38,9 @@ def resnet18_transformer(pretrained: bool, vocab: Seq2SeqVocab):
     cfg.MODEL.BACKBONE.PRETRAINED = pretrained
 
     cfg.MODEL.ENCODER.TYPE = 'tf_encoder'
+    cfg.MODEL.ENCODER.D_MODEL = 512
+    cfg.MODEL.ENCODER.NUM_HEADS = 8
+    cfg.MODEL.ENCODER.NUM_LAYERS = 2
 
     cfg.MODEL.DECODER.TYPE = 'tf_decoder'
     cfg.MODEL.DECODER.D_MODEL = 512
@@ -62,7 +65,11 @@ def resnet18_attn_lstm(pretrained: bool, vocab):
     cfg.MODEL.BACKBONE.TYPE = 'resnet18'
     cfg.MODEL.BACKBONE.FEATURE_SIZE = 512
     cfg.MODEL.BACKBONE.PRETRAINED = pretrained
+
     cfg.MODEL.ENCODER.TYPE = 'tf_encoder'
+    cfg.MODEL.ENCODER.D_MODEL = 512
+    cfg.MODEL.ENCODER.NUM_HEADS = 8
+    cfg.MODEL.ENCODER.NUM_LAYERS = 2
 
     cfg.MODEL.DECODER.TYPE = 'attn_lstm'
     cfg.MODEL.DECODER.HIDDEN_SIZE = 512

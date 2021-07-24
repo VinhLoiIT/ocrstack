@@ -16,9 +16,12 @@ class BaseEncoder(nn.Module):
 
 
 class TransformerEncoderAdapter(BaseEncoder):
-    def __init__(self, encoder: nn.TransformerEncoderLayer):
+    def __init__(self, cfg):
         super(TransformerEncoderAdapter, self).__init__()
-        self.encoder = encoder
+        self.encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(cfg.MODEL.ENCODER.D_MODEL, cfg.MODEL.ENCODER.NUM_HEADS),
+            cfg.MODEL.ENCODER.NUM_LAYERS,
+        )
 
     def forward(self, src, src_key_padding_mask=None):
         # type: (Tensor, Optional[Tensor]) -> Tensor
