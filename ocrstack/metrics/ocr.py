@@ -45,7 +45,7 @@ def compute_global_wer(predicts, targets):
 
 def compute_acc(predicts, targets):
     # type: (List[str], List[str]) -> List[float]
-    accs = [1 if pred == tgt else 0 for pred, tgt in zip(predicts, targets)]
+    accs = [1.0 if pred == tgt else 0.0 for pred, tgt in zip(predicts, targets)]
     return accs
 
 

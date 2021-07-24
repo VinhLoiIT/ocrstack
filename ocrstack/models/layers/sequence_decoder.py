@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -96,7 +96,9 @@ class TransformerDecoderAdapter(BaseDecoder):
         # type: (Tensor, int, Optional[Tensor]) -> Tensor
         batch_size = memory.size(0)
         inputs = torch.empty(batch_size, 1, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
-        outputs = [F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)]
+        outputs: List[Tensor] = [
+            F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)
+        ]
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         for _ in range(max_length):
             text = self.forward(memory, inputs, memory_key_padding_mask)        # [B, T, V]
@@ -113,8 +115,7 @@ class TransformerDecoderAdapter(BaseDecoder):
             if end_flag.all():
                 break
 
-        outputs = torch.cat(outputs, dim=1)                                   # [B, T, V]
-        return outputs
+        return torch.cat(outputs, dim=1)                                   # [B, T, V]
 
 
 class AttentionLSTMDecoder(BaseDecoder):
@@ -130,13 +131,13 @@ class AttentionLSTMDecoder(BaseDecoder):
         self.eos_idx = cfg.MODEL.TEXT_EMBED.EOS_IDX
 
     def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
-        # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tensor
         '''
         memory: (B, T, E)
         tgt: (B, T)
         '''
         hidden, cell = self._init_hidden(memory.size(0), memory.device)
-        outputs = []
+        outputs: List[Tensor] = []
 
         for t in range(tgt.size(1)):
             context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
@@ -144,14 +145,13 @@ class AttentionLSTMDecoder(BaseDecoder):
             if self.teacher_forcing or t == 0:
                 inputs = torch.cat((context, self.in_embed(tgt[:, t])), dim=-1)     # B, H + E
             else:
-                inputs = torch.cat((context, hidden), dim=-1)   # B, E + V
-            hidden, cell = self.lstm(inputs, (hidden, cell))                            # B, H
-            output = self.out_embed(hidden)                                       # B, V
-            outputs.append(output)
-        outputs = torch.stack(outputs, dim=1)
-        return outputs
+                inputs = torch.cat((context, hidden), dim=-1)                       # B, E + V
+            hidden, cell = self.lstm(inputs, (hidden, cell))                        # B, H
+            output = self.out_embed(hidden)                                         # B, V
+            outputs.append(output)                                                  # [[B, V]]
+        return torch.stack(outputs, dim=1)
 
-    def _init_hidden(self, batch_size: int, device: str) -> Tuple[Tensor, Tensor]:
+    def _init_hidden(self, batch_size: int, device: torch.device) -> Tuple[Tensor, Tensor]:
         hidden_size = self.lstm.hidden_size
         h0 = torch.zeros(batch_size, hidden_size, device=device)
         c0 = torch.zeros(batch_size, hidden_size, device=device)
@@ -166,7 +166,9 @@ class AttentionLSTMDecoder(BaseDecoder):
         batch_size = memory.size(0)
         hidden, cell = self._init_hidden(batch_size, memory.device)
         inputs = torch.empty(batch_size, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
-        outputs = [F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)]
+        outputs: List[Tensor] = [
+            F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)
+        ]
 
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         for t in range(max_length):
@@ -188,8 +190,8 @@ class AttentionLSTMDecoder(BaseDecoder):
             end_flag |= current_end
             if end_flag.all():
                 break
-        outputs = torch.stack(outputs, dim=1)
-        return outputs
+
+        return torch.stack(outputs, dim=1)
 
 
 class VisualLSTMDecoder(BaseDecoder):
