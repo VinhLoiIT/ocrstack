@@ -29,7 +29,8 @@ class OCRDataset(Dataset):
                  image_transform: Optional[Callable] = None,
                  text_transform: Optional[Callable] = None,
                  text_file_suffix: str = 'txt',
-                 encoding: str = 'utf8'
+                 encoding: str = 'utf8',
+                 image_pattern: Optional[str] = None
                  ):
         super(OCRDataset, self).__init__()
         self.logger = logging.getLogger('OCRDataset')
@@ -37,7 +38,9 @@ class OCRDataset(Dataset):
             assert len(image_paths) > 0, "Image Paths should not be empty"
             image_paths = list(map(Path, image_paths))
         elif isinstance(image_paths, (Path, str)):
-            image_paths = sorted(list(Path(image_paths).iterdir()))
+            assert image_pattern is not None, ('Image pattern must not be None when image_paths is str or Path.'
+                                               'Try passing *.png or *.jpg')
+            image_paths = sorted(list(Path(image_paths).glob(image_pattern)))
         else:
             raise NotImplementedError()
         self.image_paths = image_paths
