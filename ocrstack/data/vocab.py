@@ -67,6 +67,15 @@ class Vocab():
         return cls(list(alphabets))
 
     @classmethod
+    def from_csv(cls, vocab_path: PathLike):
+        import csv
+        with open(vocab_path, 'rt', encoding='utf8') as f:
+            reader = csv.reader(f)
+            alphabets = [line[0] for line in reader]
+
+        return cls(alphabets)
+
+    @classmethod
     def from_dataset(cls, dataset):
         char_set = set()
         for item in dataset:
