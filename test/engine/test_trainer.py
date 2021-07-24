@@ -111,7 +111,7 @@ def trainer_seq2seq(device, model, *args, **kwargs):
     val_loader = DataLoader(dataset, cfg.TRAINER.BATCH_SIZE, num_workers=cfg.TRAINER.NUM_WORKERS,
                             collate_fn=batch_collator)
 
-    translator = Seq2SeqTranslator(vocab, False, False, False)
+    translator = Seq2SeqTranslator(vocab, '', False, False, False)
     evaluator = Evaluator(model, translator, val_loader, cfg.TRAINER.DEVICE)
     trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
     trainer.train(train_loader)

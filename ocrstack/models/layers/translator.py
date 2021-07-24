@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
 import torch
-from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab, Vocab
+from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab
 
 
 class ITranslator:
@@ -32,9 +32,10 @@ class CTCTranslator(ITranslator):
 
 class Seq2SeqTranslator(ITranslator):
 
-    def __init__(self, vocab, keep_eos=True, keep_sos=True, keep_pad=False):
-        # type: (Seq2SeqVocab, bool, bool, bool) -> None
+    def __init__(self, vocab, reduce_token, keep_sos=True, keep_eos=True, keep_pad=False):
+        # type: (Seq2SeqVocab, str, bool, bool, bool) -> None
         self.vocab = vocab
+        self.reduce_token = reduce_token
         self.keep_sos = keep_sos
         self.keep_eos = keep_eos
         self.keep_pad = keep_pad
@@ -46,7 +47,7 @@ class Seq2SeqTranslator(ITranslator):
         -------
         - predicts: (B, T, V)
         '''
-        return seq2seq_translate(predicts, self.vocab, self.keep_sos, self.keep_eos, self.keep_pad)
+        return seq2seq_translate(predicts, self.vocab, self.reduce_token, self.keep_sos, self.keep_eos, self.keep_pad)
 
 
 def ctc_translate_raw(predicts, vocab):
@@ -80,6 +81,7 @@ def ctc_translate(predicts, vocab):
 
 def seq2seq_translate(predicts: torch.Tensor,
                       vocab: Seq2SeqVocab,
+                      reduce_token: str = '',
                       keep_sos: bool = False,
                       keep_eos: bool = False,
                       keep_pad: bool = False
@@ -113,7 +115,7 @@ def seq2seq_translate(predicts: torch.Tensor,
     strings: List[str] = []
 
     for probs_, indices_, start, end in zip(probs.tolist(), indices.tolist(), sos_pos, eos_pos):
-        s = ''.join(map(vocab.int2char, indices_[start:end]))
+        s = reduce_token.join(map(vocab.int2char, indices_[start:end]))
         p = probs_[start:end]
         strings.append(s)
         char_probs.append(p)

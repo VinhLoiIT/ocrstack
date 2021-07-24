@@ -26,7 +26,7 @@ def input_with_sos_eos(vocab, text):
 
 def test_translate_seq2seq_sos_eos(vocab, input_with_sos_eos, text):
     assert input_with_sos_eos.shape == torch.Size([1, len(text) + 2, len(vocab)])
-    chars, probs = seq2seq_translate(input_with_sos_eos, vocab, keep_eos=True, keep_sos=True, keep_pad=False)
+    chars, probs = seq2seq_translate(input_with_sos_eos, vocab, '', keep_sos=True, keep_eos=True, keep_pad=False)
     assert chars[0] == vocab.SOS + text + vocab.EOS
     assert torch.tensor(probs).eq(1).all()
 
@@ -34,7 +34,7 @@ def test_translate_seq2seq_sos_eos(vocab, input_with_sos_eos, text):
 def test_translate_seq2seq_sos_only(vocab, input_with_sos_eos, text):
     inputs = input_with_sos_eos[:, :-1]
     assert inputs.shape == torch.Size([1, len(text) + 1, len(vocab)])
-    chars, probs = seq2seq_translate(inputs, vocab, keep_eos=True, keep_sos=True, keep_pad=False)
+    chars, probs = seq2seq_translate(inputs, vocab, '', keep_sos=True, keep_eos=True, keep_pad=False)
     assert chars[0] == vocab.SOS + text
     assert torch.tensor(probs).eq(1).all()
 
@@ -42,6 +42,6 @@ def test_translate_seq2seq_sos_only(vocab, input_with_sos_eos, text):
 def test_translate_seq2seq_eos_only(vocab, input_with_sos_eos, text):
     inputs = input_with_sos_eos[:, 1:]
     assert inputs.shape == torch.Size([1, len(text) + 1, len(vocab)])
-    chars, probs = seq2seq_translate(inputs, vocab, keep_eos=True, keep_sos=True, keep_pad=False)
+    chars, probs = seq2seq_translate(inputs, vocab, '', keep_sos=True, keep_eos=True, keep_pad=False)
     assert chars[0] == text + vocab.EOS
     assert torch.tensor(probs).eq(1).all()
