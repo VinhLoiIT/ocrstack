@@ -7,7 +7,7 @@ from torch.types import Number
 
 __all__ = [
     'ScaleHeight',
-    'ImageTransform',
+    'RGBA2RGB',
     'BatchPadImages',
 ]
 
