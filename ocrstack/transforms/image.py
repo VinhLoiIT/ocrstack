@@ -2,7 +2,6 @@ from typing import List
 
 import numpy as np
 import torch
-import torchvision.transforms as transforms
 from PIL import Image
 from torch.types import Number
 
@@ -25,31 +24,14 @@ class ScaleHeight(object):
         return image
 
 
-class ImageTransform(object):
-    def __init__(self, **kwargs):
-        self.train = self.__train(**kwargs)
-        self.test = self.__test(**kwargs)
+class RGBA2RGB:
+    def __init__(self, background_color):
+        self.background_color = background_color
 
-    def __train(self, **kwargs):
-        transform = transforms.Compose([
-            ScaleHeight(kwargs['scale_height']),
-            transforms.RandomApply([
-                transforms.RandomAffine(0, None, None,
-                                        shear=kwargs.get('shear', None),
-                                        fillcolor=kwargs.get('fillcolor', 255)),
-            ], p=0.5),
-            transforms.ToTensor(),
-            transforms.Normalize(kwargs['mean'], kwargs['std']),
-        ])
-        return transform
-
-    def __test(self, **kwargs):
-        transform = transforms.Compose([
-            ScaleHeight(kwargs['scale_height']),
-            transforms.ToTensor(),
-            transforms.Normalize(kwargs['mean'], kwargs['std']),
-        ])
-        return transform
+    def __call__(self, image: Image.Image):
+        background = Image.new('RGBA', image.size, self.background_color)
+        alpha_composite = Image.alpha_composite(background, image)
+        return alpha_composite.convert('RGB')
 
 
 class BatchPadImages:
