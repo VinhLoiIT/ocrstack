@@ -101,7 +101,7 @@ class TransformerDecoderAdapter(BaseDecoder):
         ]
         end_flag = torch.zeros(batch_size, dtype=torch.bool)
         for _ in range(max_length):
-            text = self.forward(memory, inputs, memory_key_padding_mask)        # [B, T, V]
+            text = self.forward(memory, inputs, memory_key_padding_mask, None)  # [B, T, V]
             output = F.softmax(text[:, [-1]], dim=-1)                           # [B, 1, V]
             outputs.append(output)                                              # [[B, 1, V]]
             output = output.argmax(-1, keepdim=False)                           # [B, 1]
