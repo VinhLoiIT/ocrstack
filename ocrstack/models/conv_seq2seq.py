@@ -81,12 +81,12 @@ class GeneralizedConvSeq2Seq(BaseModel):
             images = self.encoder(images, image_padding_mask)
 
         if self.training:
-            return self.forward_training(images, text, lengths, image_padding_mask)
+            return self._forward_training(images, text, lengths, image_padding_mask)
         else:
-            return self.forward_eval(images, image_padding_mask)
+            return self._forward_eval(images, image_padding_mask)
 
-    @torch.jit.ignore()
-    def forward_training(self, images, text=None, lengths=None, image_padding_mask=None):
+    @torch.jit.unused
+    def _forward_training(self, images, text=None, lengths=None, image_padding_mask=None):
         # type: (Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]) -> Tensor
         text_padding_mask = generate_padding_mask_from_lengths(lengths - 1).to(images.device)      # B, S
         logits = self.decoder(images, text[:, :-1],
@@ -95,7 +95,7 @@ class GeneralizedConvSeq2Seq(BaseModel):
         loss = self.compute_loss(logits, text[:, 1:], lengths - 1)
         return loss
 
-    def forward_eval(self, images, image_padding_mask=None):
+    def _forward_eval(self, images, image_padding_mask=None):
         # type: (Tensor, Optional[Tensor]) -> Tensor
         predicts = self.decoder.decode(images, self.max_length, image_padding_mask)
         return predicts
