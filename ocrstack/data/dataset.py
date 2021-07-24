@@ -25,7 +25,7 @@ def glob(folder: Union[Path, str], suffixes: List[str]) -> List[Path]:
 
 class OCRDataset(Dataset):
     def __init__(self,
-                 image_paths: Union[Path, List[Path], List[str]],
+                 image_paths: Union[Path, str, List[Path], List[str]],
                  image_transform: Optional[Callable] = None,
                  text_transform: Optional[Callable] = None,
                  text_file_suffix: str = 'txt',
@@ -36,10 +36,10 @@ class OCRDataset(Dataset):
         if isinstance(image_paths, list):
             assert len(image_paths) > 0, "Image Paths should not be empty"
             image_paths = list(map(Path, image_paths))
-        elif isinstance(image_paths, Path):
-            # TODO: glob image in dir
+        elif isinstance(image_paths, (Path, str)):
+            image_paths = sorted(list(Path(image_paths).iterdir()))
+        else:
             raise NotImplementedError()
-
         self.image_paths = image_paths
         self.image_transform = image_transform
         self.text_transform = text_transform
@@ -51,7 +51,7 @@ class OCRDataset(Dataset):
 
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
-        image = Image.open(image_path).convert('RGB')
+        image = Image.open(image_path)
         if self.image_transform is not None:
             image = self.image_transform(image)
 
