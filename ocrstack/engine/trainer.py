@@ -70,10 +70,11 @@ class Trainer(object):
         self.model.to(self.cfg.TRAINER.DEVICE)
         self.model.train()
 
-        self.logger.open()
+        session_dir = create_session_dir(self.cfg.TRAINER.LOG_DIR)
+        self.logger.open(session_dir)
         self.logger.log_model(self.model, self.cfg.TRAINER.DEVICE)
 
-        self._save_config()
+        self._save_config(session_dir)
         self._warmup(train_loader)
 
         self.num_iteration = 0
@@ -127,11 +128,10 @@ class Trainer(object):
         self.epoch = state_dict['epoch']
         self.num_iteration = state_dict['num_iteration']
 
-    def _save_config(self):
-        config_path = Path(self.cfg.TRAINER.LOG_DIR, 'trainer_config.yaml')
+    def _save_config(self, session_dir: str):
+        config_path = Path(session_dir, 'config.yaml')
         logging.info(f'Save config to {config_path}')
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cfg.TRAINER.to_yaml(config_path)
+        self.cfg.to_yaml(config_path)
 
     def _warmup(self, train_loader):
         logging.info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
@@ -143,3 +143,14 @@ class Trainer(object):
                 if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
                     break
         logging.info('Warmup trainer finished')
+
+
+def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:
+    from datetime import datetime
+    from pathlib import Path
+    if name is None:
+        name = datetime.now().strftime('%Y%m%d-%H%M%S')
+
+    log_dir = Path(root_dir, name)
+    log_dir.mkdir(parents=True, exist_ok=exist_ok)
+    return str(log_dir)

@@ -9,7 +9,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 
 class LoggerInterface:
 
-    def open(self):
+    def open(self, root_dir: str):
         pass
 
     def close(self):
@@ -43,7 +43,7 @@ class ConsoleLogger(LoggerInterface):
         self.log_interval = log_interval
         self._internal_step = 0
 
-    def open(self):
+    def open(self, root_dir: str):
         logging.basicConfig(format='[%(levelname)s] %(name)s: %(message)s', level=logging.INFO)
         self._internal_step = 0
 
@@ -72,13 +72,9 @@ class ConsoleLogger(LoggerInterface):
 
 class TensorboardLogger(LoggerInterface):
 
-    def __init__(self, log_dir: str = 'runs'):
-        self._log_dir = log_dir
-
-    def open(self):
-        from datetime import datetime
+    def open(self, root_dir: str):
         from pathlib import Path
-        log_dir = Path(self._log_dir, datetime.now().strftime('%Y%m%d-%H%M%S'))
+        log_dir = Path(root_dir, 'tb_logs')
         self.logger = SummaryWriter(str(log_dir))
 
     def close(self):
@@ -110,9 +106,9 @@ class ComposeLogger(LoggerInterface):
     def __init__(self, loggers: List[LoggerInterface]) -> None:
         self.loggers = loggers
 
-    def open(self):
+    def open(self, root_dir: str):
         for logger in self.loggers:
-            logger.open()
+            logger.open(root_dir)
 
     def close(self):
         for logger in self.loggers:
