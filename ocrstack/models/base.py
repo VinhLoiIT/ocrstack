@@ -1,7 +1,6 @@
 import torch.nn as nn
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
-from ocrstack.models.conv import resnet_feature
 
 
 class ModelInterface:
@@ -33,8 +32,13 @@ class BaseModel(nn.Module, ModelInterface):
 
     def build_backbone(self, cfg: Config) -> nn.Module:
         cfg_node = cfg.MODEL.BACKBONE
-        if cfg_node.TYPE == 'resnet18':
-            backbone, _ = resnet_feature('resnet18', cfg_node.PRETRAINED)
+        if cfg_node.TYPE[:6] == 'resnet':
+            from ocrstack.models.backbone.resnet import resnet
+            backbone = resnet(cfg)
+            return backbone
+        if cfg_node.TYPE[:8] == 'densenet':
+            from ocrstack.models.backbone.densenet import densenet
+            backbone = densenet(cfg)
             return backbone
 
-        raise ValueError(f'Backbone type = {cfg_node.TYPE} is not supported')
+        raise ValueError(f'Backbone arch = {cfg_node.TYPE} is not supported')

@@ -8,8 +8,9 @@ from .conv_seq2seq import GeneralizedConvSeq2Seq
 def resnet18_lstm_ctc(pretrained: bool, vocab: CTCVocab):
     cfg = Config()
     cfg.MODEL.BACKBONE.TYPE = 'resnet18'
-    cfg.MODEL.BACKBONE.FEATURE_SIZE = 512
+    cfg.MODEL.BACKBONE.FEATURE_SIZE = 128
     cfg.MODEL.BACKBONE.PRETRAINED = pretrained
+    cfg.MODEL.BACKBONE.NUM_LAYERS = 2
 
     cfg.MODEL.ENCODER.TYPE = 'avg_pool'
     cfg.MODEL.ENCODER.BATCH_FIRST = True
@@ -34,21 +35,22 @@ def resnet18_lstm_ctc(pretrained: bool, vocab: CTCVocab):
 def resnet18_transformer(pretrained: bool, vocab: Seq2SeqVocab):
     cfg = Config()
     cfg.MODEL.BACKBONE.TYPE = 'resnet18'
-    cfg.MODEL.BACKBONE.FEATURE_SIZE = 512
+    cfg.MODEL.BACKBONE.FEATURE_SIZE = 128
     cfg.MODEL.BACKBONE.PRETRAINED = pretrained
+    cfg.MODEL.BACKBONE.NUM_LAYERS = 2
 
     cfg.MODEL.ENCODER.TYPE = 'tf_encoder'
-    cfg.MODEL.ENCODER.D_MODEL = 512
+    cfg.MODEL.ENCODER.D_MODEL = 128
     cfg.MODEL.ENCODER.NUM_HEADS = 8
     cfg.MODEL.ENCODER.NUM_LAYERS = 2
 
     cfg.MODEL.DECODER.TYPE = 'tf_decoder'
-    cfg.MODEL.DECODER.D_MODEL = 512
+    cfg.MODEL.DECODER.D_MODEL = 128
     cfg.MODEL.DECODER.NUM_HEADS = 8
     cfg.MODEL.DECODER.NUM_LAYERS = 2
     cfg.MODEL.DECODER.MAX_LENGTH = 20
 
-    cfg.MODEL.TEXT_EMBED.EMBED_SIZE = 512
+    cfg.MODEL.TEXT_EMBED.EMBED_SIZE = 128
     cfg.MODEL.TEXT_EMBED.VOCAB_SIZE = len(vocab)
     cfg.MODEL.TEXT_EMBED.SOS_IDX = vocab.SOS_IDX
     cfg.MODEL.TEXT_EMBED.EOS_IDX = vocab.EOS_IDX
@@ -63,20 +65,21 @@ def resnet18_transformer(pretrained: bool, vocab: Seq2SeqVocab):
 def resnet18_attn_lstm(pretrained: bool, vocab):
     cfg = Config()
     cfg.MODEL.BACKBONE.TYPE = 'resnet18'
-    cfg.MODEL.BACKBONE.FEATURE_SIZE = 512
+    cfg.MODEL.BACKBONE.FEATURE_SIZE = 128
     cfg.MODEL.BACKBONE.PRETRAINED = pretrained
+    cfg.MODEL.BACKBONE.NUM_LAYERS = 2
 
     cfg.MODEL.ENCODER.TYPE = 'tf_encoder'
-    cfg.MODEL.ENCODER.D_MODEL = 512
+    cfg.MODEL.ENCODER.D_MODEL = 128
     cfg.MODEL.ENCODER.NUM_HEADS = 8
     cfg.MODEL.ENCODER.NUM_LAYERS = 2
 
     cfg.MODEL.DECODER.TYPE = 'attn_lstm'
-    cfg.MODEL.DECODER.HIDDEN_SIZE = 512
+    cfg.MODEL.DECODER.HIDDEN_SIZE = 128
     cfg.MODEL.DECODER.MAX_LENGTH = 20
     cfg.MODEL.DECODER.TEACHER_FORCING = False
 
-    cfg.MODEL.TEXT_EMBED.EMBED_SIZE = 512
+    cfg.MODEL.TEXT_EMBED.EMBED_SIZE = 128
     cfg.MODEL.TEXT_EMBED.VOCAB_SIZE = len(vocab)
     cfg.MODEL.TEXT_EMBED.SOS_IDX = vocab.SOS_IDX
     cfg.MODEL.TEXT_EMBED.EOS_IDX = vocab.EOS_IDX
