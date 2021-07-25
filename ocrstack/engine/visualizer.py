@@ -9,34 +9,33 @@ from torch.utils.data.dataloader import DataLoader
 
 class Visualizer:
     def __init__(self,
-                 model: BaseModel,
-                 translator: ITranslator,
                  data_loader: DataLoader,
-                 device,
-                 writers: List['BaseWriter'] = [],
-                 num_iter_visualize: Optional[int] = None):
-        self.model = model
+                 translator: Optional[ITranslator] = None,
+                 writers: List['BaseWriter'] = []):
         self.translator = translator
         self.data_loader = data_loader
-        self.device = device
         self.writers = writers
-        self.num_iter_visualize = num_iter_visualize or float('inf')
 
     @torch.no_grad()
-    def visualize(self):
-        self.model.eval()
+    def visualize(self, model, device, num_iter_visualize=None):
+        # type: (BaseModel, torch.device, Optional[int]) -> None
+        model.eval()
 
         for writer in self.writers:
             writer.start()
 
         batch: Batch
         for i, batch in enumerate(self.data_loader):
-            batch = batch.to(self.device)
-            model_outputs = self.model.predict(batch)
-            model_outputs = self.translator.translate(model_outputs)
+            batch = batch.to(device)
+            model_outputs = model.predict(batch)
+
+            if self.translator is not None:
+                model_outputs = self.translator.translate(model_outputs)
+
             for writer in self.writers:
                 writer.visualize(batch, model_outputs)
-            if (i + 1) >= self.num_iter_visualize:
+
+            if num_iter_visualize is not None and (i + 1) >= num_iter_visualize:
                 break
 
         for writer in self.writers:

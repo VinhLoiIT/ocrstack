@@ -92,7 +92,8 @@ class Trainer(object):
                 if self.visualizer is not None and self.num_iteration % self.cfg.TRAINER.ITER_VISUALIZE == 0:
                     self.model.eval()
                     logging.info('Visualizing training process')
-                    self.visualizer.visualize()
+                    self.visualizer.visualize(self.model, self.cfg.TRAINER.DEVICE,
+                                              self.cfg.TRAINER.NUM_ITER_VISUALIZE)
                     self.model.train()
 
                 train_metrics = {name: m.compute() for name, m in self.train_metrics.items()}
