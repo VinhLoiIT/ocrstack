@@ -12,7 +12,7 @@ from ocrstack.models.base import BaseModel
 from torch.nn.utils.clip_grad import clip_grad_value_
 from torch.utils.data.dataloader import DataLoader
 
-from .checkpoint import CkptSaver
+from .checkpoint import ICkptSaver, LastCkpt, MonitorCkpt
 from .evaluator import Evaluator
 from .visualizer import Visualizer
 
@@ -30,7 +30,7 @@ class Trainer(object):
                  lr_scheduler=None,
                  evaluator: Optional[Evaluator] = None,
                  visualizer: Visualizer = None,
-                 checkpoint_callback: Optional[CkptSaver] = None,
+                 checkpoint_callback: Optional[ICkptSaver] = None,
                  logger: Optional[LoggerInterface] = None,
                  ):
         self.model = model
@@ -44,8 +44,17 @@ class Trainer(object):
             'Time': AverageMeter(),
         }
 
-        # self.checkpoint_saver = CkptSaver(Path(config.checkpoint_dir), exist_ok=True)
-        self.checkpoint_callback = checkpoint_callback
+        if cfg.TRAINER.ITER_CHECKPOINT is None:
+            checkpoint_callback = None
+        elif checkpoint_callback is None:
+            if cfg.TRAINER.MONITOR_METRIC is None:
+                self.checkpoint_callback = LastCkpt()
+            else:
+                self.checkpoint_callback = MonitorCkpt(cfg.TRAINER.MONITOR_METRIC,
+                                                       cfg.TRAINER.MONITOR_METRIC_TYPE)
+        else:
+            self.checkpoint_callback = checkpoint_callback
+
         self.visualizer = visualizer
         if logger is None:
             self.logger = ConsoleLogger(cfg.TRAINER.LOG_INTERVAL, name='Trainer')
@@ -96,16 +105,16 @@ class Trainer(object):
                                               self.cfg.TRAINER.NUM_ITER_VISUALIZE)
                     self.model.train()
 
-                train_metrics = {name: m.compute() for name, m in self.train_metrics.items()}
-                val_metrics: Optional[Dict[str, float]] = None
+                metrics: Dict[str, float] = {name: m.compute() for name, m in self.train_metrics.items()}
 
                 if self.evaluator is not None and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
                     val_metrics = self.evaluator.eval(self.model, self.cfg.TRAINER.NUM_ITER_EVAL,
                                                       self.cfg.TRAINER.DEVICE)
+                    metrics.update(val_metrics)
                     self.model.train()
 
-                if self.checkpoint_callback is not None:
-                    self.checkpoint_callback(self.state_dict(), train_metrics, val_metrics)
+                if self.checkpoint_callback is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
+                    self.checkpoint_callback.save(session_dir, self.state_dict(), metrics)
 
                 if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
                     break

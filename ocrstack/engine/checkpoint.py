@@ -1,34 +1,45 @@
-import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 import torch
 
 
-class CkptSaver(object):
+class ICkptSaver:
 
-    '''
-    Checkpointer class
-    '''
-
-    def __init__(self, checkpoint_dir: Optional[Path] = None, exist_ok: bool = False):
-        if checkpoint_dir is None:
-            folder_name = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-            checkpoint_dir = Path('ckpts').joinpath(folder_name)
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.checkpoint_dir.mkdir(exist_ok=exist_ok, parents=True)
-
-    def save(self, trainer_state: Dict, train_metrics: Dict, eval_metrics: List[Dict]):
-        '''
-        '''
+    def is_better(self, eval_metrics: Dict[str, float]) -> bool:
         pass
 
-    def __call__(self, trainer_state: Dict, train_metrics: Dict, eval_metrics: List[Dict]):
-        self.save(trainer_state, train_metrics, eval_metrics)
+    def save(self, session_dir: str, trainer_state: Dict, eval_metrics: Dict[str, float]):
+        raise NotImplementedError()
 
 
-class LossCkptSaver(CkptSaver):
-    def save(self, trainer_state: Dict, train_metrics: Dict, eval_metrics: List[Dict]):
-        filename = f'loss={train_metrics["Loss"]:.04f}.pth'
-        checkpoint_path = self.checkpoint_dir.joinpath(filename)
+class NullCkpt(ICkptSaver):
+
+    def is_better(self, eval_metrics: Dict[str, float]) -> bool:
+        return False
+
+    def save(self, session_dir: str, trainer_state: Dict, eval_metrics: Dict[str, float]):
+        pass
+
+
+class MonitorCkpt(ICkptSaver):
+
+    def __init__(self, metric_monitor: str, type_monitor: str) -> None:
+        super().__init__()
+        self.metric_monitor = metric_monitor
+        self.type_monitor = type_monitor
+
+    def save(self, session_dir: str, trainer_state: Dict, eval_metrics: Dict[str, float]):
+        filename = f'{self.metric_monitor}={eval_metrics[self.metric_monitor]:.04f}.pth'
+        checkpoint_path = Path(session_dir, 'ckpt', filename)
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(trainer_state, checkpoint_path)
+
+
+class LastCkpt(ICkptSaver):
+
+    def save(self, session_dir: str, trainer_state: Dict, eval_metrics: Dict[str, float]):
+        filename = 'last.pth'
+        checkpoint_path = Path(session_dir, 'ckpt', filename)
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(trainer_state, checkpoint_path)
