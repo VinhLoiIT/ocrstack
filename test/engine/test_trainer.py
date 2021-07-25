@@ -47,6 +47,7 @@ def simple_trainer_config(device):
     cfg.TRAINER.ITER_TRAIN = 2
     cfg.TRAINER.ITER_EVAL = 1
     cfg.TRAINER.ITER_VISUALIZE = 1
+    cfg.TRAINER.ITER_CHECKPOINT = 1
     cfg.TRAINER.NUM_ITER_VISUALIZE = 1
     cfg.TRAINER.NUM_WORKERS = 2
     cfg.TRAINER.NUM_ITER_EVAL = 1
