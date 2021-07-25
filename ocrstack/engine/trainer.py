@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Dict, Optional
 
 import torch
 import torch.optim as optim
@@ -28,7 +28,7 @@ class Trainer(object):
                  optimizer: optim.Optimizer,
                  cfg: Config,
                  lr_scheduler=None,
-                 evaluator: Union[Evaluator, List[Evaluator]] = [],
+                 evaluator: Optional[Evaluator] = None,
                  visualizer: Visualizer = None,
                  checkpoint_callback: Optional[CkptSaver] = None,
                  logger: Optional[LoggerInterface] = None,
@@ -38,10 +38,7 @@ class Trainer(object):
         self.lr_scheduler = lr_scheduler
         self.cfg = cfg
         self.grad_scaler = torch.cuda.amp.GradScaler(enabled=cfg.TRAINER.USE_AMP)
-        if isinstance(evaluator, Evaluator):
-            self.evaluators = [evaluator]
-        else:
-            self.evaluators = evaluator
+        self.evaluator = evaluator
         self.train_metrics = {
             'Loss': AverageMeter(),
             'Time': AverageMeter(),
@@ -99,11 +96,16 @@ class Trainer(object):
                     self.model.train()
 
                 train_metrics = {name: m.compute() for name, m in self.train_metrics.items()}
-                if len(self.evaluators) > 0 and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
-                    val_metrics = [evaluator.eval() for evaluator in self.evaluators]
-                    if self.checkpoint_callback is not None:
-                        self.checkpoint_callback(self.state_dict(), train_metrics, val_metrics)
+                val_metrics: Optional[Dict[str, float]] = None
+
+                if self.evaluator is not None and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
+                    val_metrics = self.evaluator.eval(self.model, self.cfg.TRAINER.NUM_ITER_EVAL,
+                                                      self.cfg.TRAINER.DEVICE)
                     self.model.train()
+
+                if self.checkpoint_callback is not None:
+                    self.checkpoint_callback(self.state_dict(), train_metrics, val_metrics)
+
                 if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
                     break
 
