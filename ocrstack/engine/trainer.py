@@ -127,7 +127,7 @@ class Trainer(object):
         state = {
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
-            'lr_scheduler': self.lr_scheduler.state_dict(),
+            'lr_scheduler': None if self.lr_scheduler is None else self.lr_scheduler.state_dict(),
             'epoch': self.epoch,
             'num_iteration': self.num_iteration,
         }
@@ -136,7 +136,8 @@ class Trainer(object):
     def load_state_dict(self, state_dict):
         self.model.load_state_dict(state_dict['model'])
         self.optimizer.load_state_dict(state_dict['optimizer'])
-        self.lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
+        if state_dict['lr_scheduler'] is not None:
+            self.lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
         self.epoch = state_dict['epoch']
         self.num_iteration = state_dict['num_iteration']
 
