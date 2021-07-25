@@ -28,7 +28,7 @@ class GeneralizedConvSeq2Seq(BaseModel):
 
     def build_encoder(self, cfg: Config) -> BaseEncoder:
         cfg_node = cfg.MODEL.ENCODER
-        if cfg_node.TYPE == None:
+        if cfg_node.TYPE is None:
             return None
         if cfg_node.TYPE == 'tf_encoder':
             encoder = TransformerEncoderAdapter(cfg)
