@@ -1,3 +1,5 @@
+import tempfile
+
 import pytest
 import torch
 import torchinfo
@@ -47,6 +49,7 @@ def simple_trainer_config(device):
     cfg.TRAINER.ITER_VISUALIZE = 1
     cfg.TRAINER.NUM_ITER_VISUALIZE = 1
     cfg.TRAINER.NUM_WORKERS = 2
+    cfg.TRAINER.NUM_ITER_EVAL = 1
     cfg.TRAINER.NUM_ITER_WARMUP = 2
 
     cfg.TRAINER.SEED = 0
@@ -84,9 +87,11 @@ def trainer_ctc(device):
                             collate_fn=batch_collator)
 
     translator = CTCTranslator(vocab, True)
-    evaluator = Evaluator(model, translator, val_loader, cfg.TRAINER.DEVICE)
-    trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
-    trainer.train(train_loader)
+    evaluator = Evaluator(val_loader, translator)
+    with tempfile.TemporaryDirectory() as d:
+        cfg.TRAINER.LOG_DIR = d
+        trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
+        trainer.train(train_loader)
 
 
 def trainer_seq2seq(device, model, *args, **kwargs):
@@ -112,9 +117,11 @@ def trainer_seq2seq(device, model, *args, **kwargs):
                             collate_fn=batch_collator)
 
     translator = Seq2SeqTranslator(vocab, '', False, False, False)
-    evaluator = Evaluator(model, translator, val_loader, cfg.TRAINER.DEVICE)
-    trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
-    trainer.train(train_loader)
+    evaluator = Evaluator(val_loader, translator)
+    with tempfile.TemporaryDirectory() as d:
+        cfg.TRAINER.LOG_DIR = d
+        trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
+        trainer.train(train_loader)
 
 
 def test_trainer_ctc_cpu():
