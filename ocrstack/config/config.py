@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, IO, Union
 import yaml
 from pathlib import Path
 
@@ -19,9 +19,13 @@ class Config(dict):
         self[name] = value
 
     @staticmethod
-    def from_yaml(yaml_path: Path) -> 'Config':
-        with open(yaml_path, 'rt') as f:
+    def from_yaml(f: Union[str, Path, IO]) -> 'Config':
+        if isinstance(f, (str, Path)):
+            with open(f, 'rt') as f:
+                config_dict = yaml.safe_load(f)
+        else:
             config_dict = yaml.safe_load(f)
+
         return Config.from_dict(config_dict)
 
     @staticmethod
@@ -41,6 +45,12 @@ class Config(dict):
             d[k] = v
         return d
 
-    def to_yaml(self, yaml_path: Path) -> None:
-        with open(yaml_path, 'wt') as f:
+    def to_yaml(self, f: Union[str, Path, IO]) -> None:
+        def dump(f):
             yaml.safe_dump(self.to_dict(), f, indent=2)
+
+        if isinstance(f, (str, Path)):
+            with open(f, 'wt') as f:
+                dump(f)
+        else:
+            dump(f)

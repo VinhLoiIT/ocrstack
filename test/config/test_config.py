@@ -1,3 +1,4 @@
+from io import StringIO
 from ocrstack.config.config import Config
 
 
@@ -50,3 +51,21 @@ def test_compare_not_equal_config():
     })
 
     assert conf_a != conf_b
+
+
+def test_serialize_config():
+    cfg = Config.from_dict({
+        'param1': 1,
+        'param2': 'x',
+        'param3': Config.from_dict({
+            'param3_1': 1.0,
+            'param3_2': [1, 2, 3, 4],
+        })
+    })
+
+    with StringIO() as f:
+        cfg.to_yaml(f)
+        f.seek(0)
+        cfg2 = cfg.from_yaml(f)
+
+    assert cfg == cfg2
