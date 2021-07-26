@@ -67,7 +67,8 @@ class Trainer(object):
         self.optimizer.zero_grad()
         self.grad_scaler.scale(loss).backward()
         self.grad_scaler.unscale_(self.optimizer)
-        clip_grad_value_(self.model.parameters(), self.cfg.TRAINER.CLIP_GRAD_VALUE)
+        if self.cfg.TRAINER.CLIP_GRAD_VALUE is not None:
+            clip_grad_value_(self.model.parameters(), self.cfg.TRAINER.CLIP_GRAD_VALUE)
         self.grad_scaler.step(self.optimizer)
         self.grad_scaler.update()
         return loss.item()
