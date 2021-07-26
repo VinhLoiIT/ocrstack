@@ -6,7 +6,7 @@ import torch
 import torch.optim as optim
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
-from ocrstack.engine.logger import ConsoleLogger, ILogger
+from ocrstack.engine.logger import ConsoleLogger, ILogger, ComposeLogger, TensorboardLogger
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.models.base import BaseModel
 from torch.nn.utils.clip_grad import clip_grad_value_
@@ -57,7 +57,10 @@ class Trainer(object):
 
         self.visualizer = visualizer
         if logger is None:
-            self.logger = ConsoleLogger(cfg.TRAINER.LOG_INTERVAL, name='Trainer')
+            self.logger = ComposeLogger([
+                ConsoleLogger(cfg.TRAINER.LOG_INTERVAL, name='Trainer'),
+                TensorboardLogger(),
+            ])
         else:
             self.logger = logger
 
