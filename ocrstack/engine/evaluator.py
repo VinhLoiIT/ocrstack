@@ -8,7 +8,7 @@ from ocrstack.models.layers.translator import ITranslator
 from torch.utils.data.dataloader import DataLoader
 
 
-class EvaluateInterface:
+class IEvaluator:
 
     def get_name(self) -> str:
         raise NotImplementedError()
@@ -18,7 +18,7 @@ class EvaluateInterface:
         raise NotImplementedError()
 
 
-class Evaluator(EvaluateInterface):
+class Evaluator(IEvaluator):
     def __init__(self,
                  name: str,
                  data_loader: DataLoader,
@@ -69,8 +69,8 @@ class Evaluator(EvaluateInterface):
         }
 
 
-class ComposeEvaluator(EvaluateInterface):
-    def __init__(self, evaluators: List[EvaluateInterface], join_token: str = '/', metric_first: bool = False) -> None:
+class ComposeEvaluator(IEvaluator):
+    def __init__(self, evaluators: List[IEvaluator], join_token: str = '/', metric_first: bool = False) -> None:
         self.evaluators = evaluators
         self.join_token = join_token
         self.metric_first = metric_first

@@ -6,7 +6,7 @@ import torch
 import torch.optim as optim
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
-from ocrstack.engine.logger import ConsoleLogger, LoggerInterface
+from ocrstack.engine.logger import ConsoleLogger, ILogger
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.models.base import BaseModel
 from torch.nn.utils.clip_grad import clip_grad_value_
@@ -31,7 +31,7 @@ class Trainer(object):
                  evaluator: Optional[Evaluator] = None,
                  visualizer: Visualizer = None,
                  checkpoint_callback: Optional[ICkptSaver] = None,
-                 logger: Optional[LoggerInterface] = None,
+                 logger: Optional[ILogger] = None,
                  ):
         self.model = model
         self.optimizer = optimizer

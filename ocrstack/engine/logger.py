@@ -7,7 +7,7 @@ from ocrstack.models.base import BaseModel
 from torch.utils.tensorboard.writer import SummaryWriter
 
 
-class LoggerInterface:
+class ILogger:
 
     def open(self, root_dir: str):
         pass
@@ -29,7 +29,7 @@ class LoggerInterface:
         raise NotImplementedError()
 
 
-class BaseLogger(LoggerInterface):
+class BaseLogger(ILogger):
 
     def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
         # type: (Dict[str, float], bool, str, Optional[int]) -> None
@@ -136,7 +136,7 @@ class TensorboardLogger(BaseLogger):
 
 class ComposeLogger(BaseLogger):
 
-    def __init__(self, loggers: List[LoggerInterface]) -> None:
+    def __init__(self, loggers: List[ILogger]) -> None:
         self.loggers = loggers
 
     def open(self, root_dir: str):

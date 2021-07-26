@@ -3,7 +3,7 @@ from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 
 
-class ModelInterface:
+class IModel:
 
     def example_inputs(self):
         raise NotImplementedError()
@@ -15,7 +15,7 @@ class ModelInterface:
         raise NotImplementedError()
 
 
-class BaseModel(nn.Module, ModelInterface):
+class BaseModel(nn.Module, IModel):
 
     def __init__(self, cfg: Config):
         super().__init__()
