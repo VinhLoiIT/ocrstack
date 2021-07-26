@@ -108,9 +108,9 @@ class Trainer(object):
                 metrics: Dict[str, float] = {name: m.compute() for name, m in self.train_metrics.items()}
 
                 if self.evaluator is not None and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
-                    val_metrics = self.evaluator.eval(self.model, self.cfg.TRAINER.NUM_ITER_EVAL,
-                                                      self.cfg.TRAINER.DEVICE)
-                    metrics.update(val_metrics)
+                    metrics = self.evaluator.eval(self.model, self.cfg.TRAINER.NUM_ITER_EVAL,
+                                                  self.cfg.TRAINER.DEVICE)
+                    self.logger.log_metrics(metrics, False)
                     self.model.train()
 
                 if self.checkpoint_callback is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:

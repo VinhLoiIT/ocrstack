@@ -57,7 +57,7 @@ def simple_trainer_config(device):
     cfg.TRAINER.USE_AMP = False
     cfg.TRAINER.LOG_DIR = 'runs'
     cfg.TRAINER.LOG_INTERVAL = 10
-    cfg.TRAINER.MONITOR_METRIC = 'CER'
+    cfg.TRAINER.MONITOR_METRIC = 'val/CER'
     cfg.TRAINER.MONITOR_METRIC_TYPE = 'lower'
     cfg.TRAINER.PRETRAINED_WEIGHT = None
     cfg.TRAINER.PRETRAINED_CONFIG = None
@@ -88,7 +88,7 @@ def trainer_ctc(device):
                             collate_fn=batch_collator)
 
     translator = CTCTranslator(vocab, True)
-    evaluator = Evaluator(val_loader, translator)
+    evaluator = Evaluator('val', val_loader, translator)
     with tempfile.TemporaryDirectory() as d:
         cfg.TRAINER.LOG_DIR = d
         trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)
@@ -118,7 +118,7 @@ def trainer_seq2seq(device, model, *args, **kwargs):
                             collate_fn=batch_collator)
 
     translator = Seq2SeqTranslator(vocab, '', False, False, False)
-    evaluator = Evaluator(val_loader, translator)
+    evaluator = Evaluator('val', val_loader, translator)
     with tempfile.TemporaryDirectory() as d:
         cfg.TRAINER.LOG_DIR = d
         trainer = Trainer(model, optimizer, cfg, evaluator=evaluator)

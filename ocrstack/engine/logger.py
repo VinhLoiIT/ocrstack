@@ -24,8 +24,37 @@ class LoggerInterface:
     def log_model(self, model: BaseModel, device: str):
         raise NotImplementedError()
 
+    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
+        # type: (Dict[str, float], bool, str, Optional[int]) -> None
+        raise NotImplementedError()
 
-class NoLogger(LoggerInterface):
+
+class BaseLogger(LoggerInterface):
+
+    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
+        # type: (Dict[str, float], bool, str, Optional[int]) -> None
+        if not group_name:
+            for name, val in metrics.items():
+                self.log_scalar(name, val, step)
+            return
+
+        assert sep_token is not None
+        groups: Dict[str, Dict[str, float]] = {}
+        for name, val in metrics.items():
+            splits = name.split(sep_token, maxsplit=1)
+            if len(splits) == 1:
+                self.log_scalar(name, val, step)
+            else:
+                group_name, metric_name = splits
+                group = groups.get(group_name, {})
+                group[metric_name] = val
+                groups[group_name] = group
+
+        for group_name, group_metric_dict in groups.items():
+            self.log_scalars(group_name, group_metric_dict, step)
+
+
+class NoLogger(BaseLogger):
 
     def log_scalar(self, name: str, value: float, step: Optional[int] = None):
         pass
@@ -36,8 +65,12 @@ class NoLogger(LoggerInterface):
     def log_model(self, model: BaseModel, device: str):
         pass
 
+    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
+        # type: (Dict[str, float], bool, str, Optional[int]) -> None
+        pass
 
-class ConsoleLogger(LoggerInterface):
+
+class ConsoleLogger(BaseLogger):
     def __init__(self, log_interval: int, name: Optional[str] = None):
         self.logger = logging.getLogger(name or self.__class__.__name__)
         self.log_interval = log_interval
@@ -70,7 +103,7 @@ class ConsoleLogger(LoggerInterface):
             self.logger.info(model)
 
 
-class TensorboardLogger(LoggerInterface):
+class TensorboardLogger(BaseLogger):
 
     def open(self, root_dir: str):
         from pathlib import Path
@@ -101,7 +134,7 @@ class TensorboardLogger(LoggerInterface):
         self.logger.add_graph(model, input_to_model=inputs)
 
 
-class ComposeLogger(LoggerInterface):
+class ComposeLogger(BaseLogger):
 
     def __init__(self, loggers: List[LoggerInterface]) -> None:
         self.loggers = loggers
@@ -125,3 +158,8 @@ class ComposeLogger(LoggerInterface):
     def log_model(self, model: BaseModel, device: str):
         for logger in self.loggers:
             logger.log_model(model, device)
+
+    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
+        # type: (Dict[str, float], bool, str, Optional[int]) -> None
+        for logger in self.loggers:
+            logger.log_metrics(metrics, group_name, sep_token, step)
