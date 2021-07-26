@@ -147,15 +147,15 @@ class Trainer(object):
         self.cfg.to_yaml(config_path)
 
     def _warmup(self, train_loader):
-        logging.info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
         self.model.train()
         if self.cfg.TRAINER.NUM_ITER_WARMUP > 0:
+            logging.info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
             for i, batch in enumerate(train_loader):
                 self.train_step(batch)
                 logging.debug(f'Warmed {i + 1} iteration(s)')
                 if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
                     break
-        logging.info('Warmup trainer finished')
+            logging.info('Warmup trainer finished')
 
 
 def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:
