@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -32,6 +32,43 @@ class RGBA2RGB:
         background = Image.new('RGBA', image.size, self.background_color)
         alpha_composite = Image.alpha_composite(background, image)
         return alpha_composite.convert('RGB')
+
+
+class RandomPadding:
+    def __init__(self, pad_width, pad_height, pad_color=None):
+        # type: (Union[Tuple[int, int], int], Union[Tuple[int, int], int], Optional[Tuple[int, int, int]])-> None
+        self.pad_color = pad_color
+        if isinstance(pad_width, int):
+            self.min_pad_w, self.max_pad_w = 0, pad_width
+        else:
+            self.min_pad_w, self.max_pad_w = pad_width
+
+        if isinstance(pad_width, int):
+            self.min_pad_h, self.max_pad_h = 0, pad_height
+        else:
+            self.min_pad_h, self.max_pad_h = pad_height
+
+    def __call__(self, image: Image.Image):
+        width, height = image.size
+        pad_w = np.random.randint(self.min_pad_w, self.max_pad_w)
+        pad_h = np.random.randint(self.min_pad_h, self.max_pad_h)
+        new_width = width + pad_w
+        new_height = height + pad_h
+
+        if self.pad_color is None:
+            # sum corner pixels' colors
+            tl = image.getpixel((0, 0))
+            tr = image.getpixel((width - 1, 0))
+            bl = image.getpixel((0, height - 1))
+            br = image.getpixel((width - 1, height - 1))
+            pad_color = np.array([p for p in [tl, tr, br, bl]]).mean(axis=0).astype(np.uint8)
+            pad_color = tuple(pad_color)
+        else:
+            pad_color = self.pad_color
+
+        result = Image.new(image.mode, (new_width, new_height), pad_color)
+        result.paste(image, (pad_w // 2, pad_h // 2))
+        return result
 
 
 class BatchPadImages:
