@@ -49,7 +49,7 @@ class Config(dict):
 
     def to_yaml(self, f: Union[str, Path, IO]) -> None:
         def dump(f):
-            yaml.safe_dump(self.to_dict(), f, indent=2)
+            yaml.safe_dump(self.to_dict(), f, indent=2, default_flow_style=False)
 
         if isinstance(f, (str, Path)):
             with open(f, 'wt') as f:
