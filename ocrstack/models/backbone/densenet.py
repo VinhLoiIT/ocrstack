@@ -196,7 +196,8 @@ class DenseNet(nn.Module):
                 num_features = num_features // 2
 
         # Final batch norm
-        self.features.add_module('norm5', nn.BatchNorm2d(num_features))
+        if len(block_config) == 4:
+            self.features.add_module('norm5', nn.BatchNorm2d(num_features))
 
         # Official init from torch repo.
         for m in self.modules():

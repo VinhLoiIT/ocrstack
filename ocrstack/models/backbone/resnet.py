@@ -243,6 +243,17 @@ class ResNet(nn.Module):
         return self._forward_impl(x)
 
 
+def _update_weight_name(state_dict):
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        new_name = k
+        if 'layer' in k:
+            layer_index, weight_name = k.split('.', maxsplit=1)
+            new_name = '.'.join(('layers', str(int(layer_index[-1]) - 1), weight_name))
+        new_state_dict[new_name] = v
+    return new_state_dict
+
+
 def _resnet(
     arch: str,
     block: Type[Union[BasicBlock, Bottleneck]],
@@ -255,6 +266,7 @@ def _resnet(
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
+        state_dict = _update_weight_name(state_dict)
         missing_keys, _ = model.load_state_dict(state_dict, False)
         assert len(missing_keys) == 0, missing_keys
     return model
