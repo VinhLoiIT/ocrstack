@@ -117,7 +117,7 @@ class Trainer(object):
                 if self.evaluator is not None and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
                     metrics = self.evaluator.eval(self.model, self.cfg.TRAINER.NUM_ITER_EVAL,
                                                   self.cfg.TRAINER.DEVICE)
-                    self.logger.log_metrics(metrics, False, self.num_iteration)
+                    self.logger.log_metrics(metrics, False, step=self.num_iteration)
                     self.model.train()
 
                 if self.checkpoint_callback is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
