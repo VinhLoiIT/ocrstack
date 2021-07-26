@@ -7,6 +7,7 @@ import torch.optim as optim
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from ocrstack.engine.logger import ConsoleLogger, ILogger, ComposeLogger, TensorboardLogger
+from ocrstack.engine.utils import set_seed
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.models.base import BaseModel
 from torch.nn.utils.clip_grad import clip_grad_value_
@@ -77,6 +78,8 @@ class Trainer(object):
         return loss.item()
 
     def train(self, train_loader: DataLoader):
+        set_seed(self.cfg.TRAINER.SEED)
+
         self.model.to(self.cfg.TRAINER.DEVICE)
         self.model.train()
 
