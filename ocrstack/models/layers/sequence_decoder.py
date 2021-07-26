@@ -8,6 +8,7 @@ from torch import Tensor
 
 from ..utils import generate_square_subsequent_mask
 from .attention import DotProductAttention
+from .positional_encoding import PositionalEncoding1d
 
 
 def _decode_unimplemented(self, *input: Any) -> None:
@@ -61,12 +62,20 @@ class TransformerDecoderAdapter(BaseDecoder):
     def __init__(self, cfg):
         super(TransformerDecoderAdapter, self).__init__()
         self.in_embed, self.out_embed = self.build_embedding(cfg)
+        self.positional_encoding = self.build_positional_encoding(cfg)
         self.decoder = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(cfg.MODEL.DECODER.D_MODEL, cfg.MODEL.DECODER.NUM_HEADS),
             cfg.MODEL.DECODER.NUM_LAYERS
         )
         self.sos_idx = cfg.MODEL.TEXT_EMBED.SOS_IDX
         self.eos_idx = cfg.MODEL.TEXT_EMBED.EOS_IDX
+
+    def build_positional_encoding(self, cfg: Config) -> nn.Module:
+        if cfg.MODEL.TEXT_EMBED.POS_ENC_TYPE is None:
+            return None
+
+        if cfg.MODEL.TEXT_EMBED.POS_ENC_TYPE == 'sinusoidal':
+            return PositionalEncoding1d(cfg.MODEL.TEXT_EMBED.EMBED_SIZE)
 
     def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
         # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tensor
@@ -83,6 +92,10 @@ class TransformerDecoderAdapter(BaseDecoder):
         # Since transformer components working with time-first tensor, we should transpose the shape first
         tgt = self.in_embed(tgt)                    # [B, T, E]
         tgt = tgt.transpose(0, 1)                   # [T, B, E]
+
+        if self.positional_encoding is not None:
+            tgt = self.positional_encoding(tgt)     # [T, B, E]
+
         memory = memory.transpose(0, 1)             # [S, B, E]
         tgt_mask = generate_square_subsequent_mask(tgt.size(0)).to(memory.device)
         memory_mask = None
