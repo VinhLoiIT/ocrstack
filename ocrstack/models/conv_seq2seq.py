@@ -38,10 +38,15 @@ class GeneralizedConvSeq2Seq(BaseModel):
 
     def build_decoder(self, cfg: Config) -> BaseDecoder:
         cfg_node = cfg.MODEL.DECODER
+
+        if cfg_node.TYPE is None:
+            return None
+
         if cfg_node.TYPE == 'tf_decoder':
             decoder = TransformerDecoderAdapter(cfg)
             return decoder
-        elif cfg_node.TYPE == 'attn_lstm':
+
+        if cfg_node.TYPE == 'attn_lstm':
             decoder = AttentionLSTMDecoder(cfg)
             return decoder
 
