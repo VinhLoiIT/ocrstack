@@ -1,6 +1,8 @@
-from typing import Any, Dict, IO, Union
-import yaml
+from io import StringIO
 from pathlib import Path
+from typing import IO, Any, Dict, List, Tuple, Union
+
+import yaml
 
 
 class Config(dict):
@@ -54,3 +56,24 @@ class Config(dict):
                 dump(f)
         else:
             dump(f)
+
+    def __str__(self) -> str:
+        def flatten(d, prefix='') -> List[Tuple[str, Any]]:
+            items = []
+            for k, v in d.items():
+                new_key = f'{prefix}.{k}' if prefix else k
+                if isinstance(v, dict):
+                    items.extend(flatten(v, new_key))
+                else:
+                    items.append((new_key, v))
+            return items
+
+        cfg_list = flatten(self, 'cfg')
+        max_length = max([len(item[0]) for item in cfg_list])
+        with StringIO() as f:
+            print('*' * (max_length * 2 + 3), file=f)
+            for k, v in cfg_list:
+                print(str.ljust(k, max_length), '*', v, file=f)
+            print('*' * (max_length * 2 + 3), file=f)
+            f.seek(0)
+            return f.read()
