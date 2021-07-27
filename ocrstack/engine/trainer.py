@@ -31,7 +31,7 @@ class Trainer(object):
                  lr_scheduler=None,
                  evaluator: Optional[Evaluator] = None,
                  visualizer: Visualizer = None,
-                 checkpoint_callback: Optional[ICkptSaver] = None,
+                 ckpt_saver: Optional[ICkptSaver] = None,
                  logger: Optional[ILogger] = None,
                  ):
         self.model = model
@@ -46,16 +46,16 @@ class Trainer(object):
         }
 
         if cfg.TRAINER.ITER_CHECKPOINT is None:
-            checkpoint_callback = None
-        elif checkpoint_callback is None:
+            ckpt_saver = None
+        elif ckpt_saver is None:
             if cfg.TRAINER.MONITOR_METRIC is None:
-                self.checkpoint_callback = LastCkpt()
+                self.ckpt_saver = LastCkpt()
             else:
-                self.checkpoint_callback = MonitorCkpt(cfg.TRAINER.MONITOR_METRIC,
-                                                       cfg.TRAINER.MONITOR_METRIC_TYPE,
-                                                       cfg.TRAINER.SAVE_TOP_CHECKPOINT)
+                self.ckpt_saver = MonitorCkpt(cfg.TRAINER.MONITOR_METRIC,
+                                              cfg.TRAINER.MONITOR_METRIC_TYPE,
+                                              cfg.TRAINER.SAVE_TOP_CHECKPOINT)
         else:
-            self.checkpoint_callback = checkpoint_callback
+            self.ckpt_saver = ckpt_saver
 
         self.visualizer = visualizer
         if logger is None:
@@ -65,6 +65,8 @@ class Trainer(object):
             ])
         else:
             self.logger = logger
+
+        self.printer = logging.getLogger('Trainer')
 
     def train_step(self, batch: Batch):
         batch = batch.to(self.cfg.TRAINER.DEVICE)
@@ -121,8 +123,12 @@ class Trainer(object):
                     self.logger.log_metrics(metrics, False, step=self.num_iteration)
                     self.model.train()
 
-                if self.checkpoint_callback is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
-                    self.checkpoint_callback.save(session_dir, self.state_dict(), metrics)
+                if self.ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
+                    if self.ckpt_saver.is_better(metrics):
+                        self.printer.info('Found better checkpoint. Improved from %.4f to %.4f',
+                                          self.ckpt_saver.get_last_metric_value(),
+                                          self.ckpt_saver.get_metric_value(metrics))
+                        self.ckpt_saver.save(session_dir, self.state_dict(), metrics)
 
                 if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
                     break
