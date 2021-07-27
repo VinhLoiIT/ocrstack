@@ -52,7 +52,8 @@ class Trainer(object):
                 self.checkpoint_callback = LastCkpt()
             else:
                 self.checkpoint_callback = MonitorCkpt(cfg.TRAINER.MONITOR_METRIC,
-                                                       cfg.TRAINER.MONITOR_METRIC_TYPE)
+                                                       cfg.TRAINER.MONITOR_METRIC_TYPE,
+                                                       cfg.TRAINER.SAVE_TOP_CHECKPOINT)
         else:
             self.checkpoint_callback = checkpoint_callback
 
