@@ -95,7 +95,7 @@ class Trainer(object):
 
         self.num_iteration = 0
         self.epoch = 0
-        logging.info(f'Start training for {self.cfg.TRAINER.ITER_TRAIN} iteration(s)')
+        self.printer.info(f'Start training for {self.cfg.TRAINER.ITER_TRAIN} iteration(s)')
         while self.num_iteration < self.cfg.TRAINER.ITER_TRAIN:
             loss_meter = self.train_metrics['Loss']
             for i, batch in enumerate(train_loader):
@@ -110,7 +110,7 @@ class Trainer(object):
 
                 if self.visualizer is not None and self.num_iteration % self.cfg.TRAINER.ITER_VISUALIZE == 0:
                     self.model.eval()
-                    logging.info('Visualizing training process')
+                    self.printer.info('Visualizing training process')
                     self.visualizer.visualize(self.model, self.cfg.TRAINER.DEVICE,
                                               self.cfg.TRAINER.NUM_ITER_VISUALIZE)
                     self.model.train()
@@ -157,19 +157,19 @@ class Trainer(object):
 
     def _save_config(self, session_dir: str):
         config_path = Path(session_dir, 'config.yaml')
-        logging.info(f'Save config to {config_path}')
+        self.printer.info(f'Save config to {config_path}')
         self.cfg.to_yaml(config_path)
 
     def _warmup(self, train_loader):
         self.model.train()
         if self.cfg.TRAINER.NUM_ITER_WARMUP > 0:
-            logging.info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
+            self.printer.info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
             for i, batch in enumerate(train_loader):
                 self.train_step(batch)
-                logging.debug(f'Warmed {i + 1} iteration(s)')
+                self.printer.debug(f'Warmed {i + 1} iteration(s)')
                 if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
                     break
-            logging.info('Warmup trainer finished')
+            self.printer.info('Warmup trainer finished')
 
 
 def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:
