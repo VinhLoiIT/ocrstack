@@ -1,13 +1,15 @@
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Tuple
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
 
 
 class Batch:
 
-    def __init__(self, images, text, lengths, text_str, metadata):
-        # type: (torch.Tensor, torch.Tensor, torch.Tensor, List[str], List[Dict]) -> None
+    def __init__(self, images, image_mask, text, lengths, text_str, metadata):
+        # type: (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, List[str], List[Dict]) -> None
         self.images = images
+        self.image_mask = image_mask
         self.text = text
         self.text_str = text_str
         self.metadata = metadata
@@ -17,21 +19,54 @@ class Batch:
         return len(self.images)
 
     def to(self, device):
-        return Batch(self.images.to(device), self.text.to(device),
+        return Batch(self.images.to(device), self.image_mask.to(device), self.text.to(device),
                      self.lengths, self.text_str, self.metadata)
 
 
 class BatchCollator:
-    def __init__(self, batch_image_transform=None, batch_text_transform=None):
-        # type: (Optional[Callable], Optional[Callable]) -> None
-        self.batch_image_transform = batch_image_transform or torch.stack
-        self.batch_text_transform = batch_text_transform or torch.stack
+    def __init__(self, text_padding_value=0, image_padding_value=0., sort_length=True, batch_first=True):
+        # type: (int, float, bool, bool) -> None
+        '''
+        text_padding_value: Value which will be used for text padding since text might have different sizes.
+            Default is 0
+        image_padding_value: Value which will be used for image padding since images might have different sizes.
+            Default is 0.
+        sort_length: Sort samples by its groundtruth length.
+            Default is True.
+        batch_first: returned padded text is (B, T) if batch_first is True, otherwise (T, B)
+            Default is True
+        '''
+        self.text_padding_value = text_padding_value
+        self.image_padding_value = image_padding_value
+        self.sort_length = sort_length
+        self.batch_first = batch_first
 
     def __call__(self, batch: List[Dict[str, Any]]):
-        batch.sort(key=lambda sample: len(sample['text']), reverse=True)
+        if self.sort_length:
+            batch.sort(key=lambda sample: len(sample['text']), reverse=True)
+
         text_str = [sample['text_str'] for sample in batch]
-        lengths = torch.tensor([len(sample['text']) for sample in batch])
-        images = self.batch_image_transform([x['image'] for x in batch])
-        text = self.batch_text_transform([x['text'] for x in batch])
         metadata = [x.get('metadata', {}) for x in batch]
-        return Batch(images, text, lengths, text_str, metadata)
+
+        images, image_mask = self.collate_images([x['image'] for x in batch])
+        text, lengths = self.collate_text([x['text'] for x in batch])
+
+        return Batch(images, image_mask, text, lengths, text_str, metadata)
+
+    def collate_images(self, images: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        image_shapes = torch.tensor([im.shape for im in images])
+        C, H, W = image_shapes.max(dim=0)[0]
+        B = len(images)
+
+        batch_image = torch.full((B, C, H, W), fill_value=self.image_padding_value)
+        image_mask = torch.full((B, H, W), fill_value=0.0)
+        for img, pad_img in zip(images, batch_image):
+            pad_img[..., : img.shape[-2], : img.shape[-1]].copy_(img)
+            image_mask[..., : img.shape[-2], : img.shape[-2]] = 1.0
+
+        return batch_image, image_mask
+
+    def collate_text(self, texts: List[torch.Tensor]) -> Tuple[torch.Tensor, List[int]]:
+        lengths: List[int] = torch.tensor([len(text) for text in texts])
+        padded_text = pad_sequence(texts, self.batch_first, self.text_padding_value)
+        return padded_text, lengths

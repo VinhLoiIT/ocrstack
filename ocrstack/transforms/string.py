@@ -1,11 +1,11 @@
-from typing import Callable, List, Mapping, Optional
+from typing import Callable, List, Mapping
 
 import torch
 import torch.nn.functional as F
 from ocrstack.data.vocab import Seq2SeqVocab, Vocab
 
 __all__ = ['LabelDecoder', 'Replace', 'TextToTensor', 'ToCharList',
-           'OneHotEncoding', 'AddSeq2SeqTokens', 'BatchPadTexts']
+           'OneHotEncoding', 'AddSeq2SeqTokens']
 
 
 class Replace(object):
@@ -66,27 +66,3 @@ class LabelDecoder(object):
         tokens_samples = self.decode_to_tokens(tensor, lengths)
         samples = [join_char.join(tokens) for tokens in tokens_samples]
         return samples
-
-
-class BatchPadTexts:
-    def __init__(self, pad_value, max_length=None):
-        # type: (torch.Tensor, Optional[int]) -> None
-        assert max_length is None or max_length > 0
-        self.max_length = max_length or 0
-        self.pad_value = torch.as_tensor(pad_value)
-
-    def __call__(self, texts: List[torch.Tensor]):
-        assert len(texts) > 0
-        lengths: List[int] = [text.size(0) for text in texts]
-        max_length = self.max_length or max(*lengths, self.max_length)
-
-        if len(texts) == 1:
-            return texts[0].unsqueeze(0)
-
-        batch_shape = [len(texts), max_length] + list(texts[0].shape[1:])
-        batched_text = torch.empty(batch_shape, dtype=torch.long)
-        for i, t in enumerate(texts):
-            batched_text[i, :t.shape[0], ...].copy_(t)
-            batched_text[i, t.shape[0]:, ...].copy_(self.pad_value)
-
-        return batched_text

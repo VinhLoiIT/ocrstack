@@ -83,6 +83,9 @@ class Vocab():
             char_set = char_set.union(set(raw_text))
         return cls(list(char_set))
 
+    def __str__(self) -> str:
+        return f'{self.adapter.stoi}'
+
 
 class CTCVocab(Vocab):
     def __init__(self,
