@@ -1,4 +1,5 @@
-from typing import Dict, Optional, Union, List
+import logging
+from typing import Dict, List, Optional, Union
 
 import torch
 from ocrstack.data.collate import Batch
@@ -13,20 +14,49 @@ class IEvaluator:
     def get_name(self) -> str:
         raise NotImplementedError()
 
-    def eval(self, model, num_iter_eval, device):
-        # type: (BaseModel, int, torch.Device) -> Dict[str, float]
+    def eval(self, model, device=None):
+        # type: (BaseModel, Optional[torch.Device]) -> Optional[Dict[str, float]]
         raise NotImplementedError()
 
 
-class Evaluator(IEvaluator):
+class BaseEvaluator(IEvaluator):
+
+    def __init__(self,
+                 data_loader: DataLoader,
+                 translator: Optional[ITranslator] = None,
+                 num_iterations: Optional[int] = None) -> None:
+        super().__init__()
+        self.translator = translator
+        self.data_loader = data_loader
+
+        self.num_iterations = num_iterations
+        if self.num_iterations is None:
+            self.num_iterations = len(self.data_loader)
+
+        self.logger = logging.getLogger(self.get_name())
+
+    def get_name(self) -> str:
+        raise NotImplementedError()
+
+    def eval(self, model, device=None):
+        # type: (BaseModel, Optional[torch.Device]) -> Optional[Dict[str, float]]
+        raise NotImplementedError()
+
+
+class MetricsEvaluator(BaseEvaluator):
     def __init__(self,
                  name: str,
                  data_loader: DataLoader,
                  translator: Optional[ITranslator] = None,
-                 metrics: Optional[Union[Dict, str]] = 'all'):
+                 num_iterations: Optional[int] = None,
+                 metrics: Optional[Union[Dict, str]] = 'all',
+                 log_interval: Optional[int] = None):
         self.name = name
-        self.translator = translator
-        self.data_loader = data_loader
+        super().__init__(data_loader, translator, num_iterations)
+
+        self.log_interval = log_interval
+        if log_interval is None:
+            self.log_interval = len(self.data_loader)
 
         if isinstance(metrics, Dict):
             self.metrics = metrics
@@ -44,8 +74,8 @@ class Evaluator(IEvaluator):
     def get_name(self):
         return self.name
 
-    def eval(self, model, num_iter_eval, device):
-        # type: (BaseModel, int, torch.Device) -> Dict[str, float]
+    def eval(self, model, device=None):
+        # type: (BaseModel, torch.Device) -> Optional[Dict[str, float]]
         for metric in self.metrics.values():
             metric.reset()
 
@@ -60,7 +90,13 @@ class Evaluator(IEvaluator):
                 for metric in self.metrics.values():
                     metric.update(predicts, batch)
 
-                if (i + 1) >= num_iter_eval:
+                if (i + 1) % self.log_interval == 0:
+                    self.logger.info({
+                        f'{name}': metric.compute()
+                        for name, metric in self.metrics.items()
+                    })
+
+                if (i + 1) >= self.num_iterations:
                     break
 
         return {
@@ -69,24 +105,38 @@ class Evaluator(IEvaluator):
         }
 
 
-class ComposeEvaluator(IEvaluator):
-    def __init__(self, evaluators: List[IEvaluator], join_token: str = '/', metric_first: bool = False) -> None:
-        self.evaluators = evaluators
-        self.join_token = join_token
-        self.metric_first = metric_first
+class VisualizeEvaluator(BaseEvaluator):
+    def __init__(self,
+                 data_loader: DataLoader,
+                 translator: Optional[ITranslator] = None,
+                 num_iterations: Optional[int] = None,
+                 meta_fields: List[str] = []):
+        super().__init__(data_loader, translator, num_iterations)
+        self.meta_fields = meta_fields
 
     def get_name(self) -> str:
-        return 'Compose'
+        return 'Visualizer'
 
-    def eval(self, model, num_iter_eval, device):
-        # type: (BaseModel, int, torch.Device) -> Dict[str, float]
-        val_metrics = {}
-        for evaluator in self.evaluators:
-            metrics = evaluator.eval(model, num_iter_eval, device)
-            for metric_name, metric_value in metrics:
-                if self.metric_first:
-                    name = self.join_token.join((metric_name, evaluator.get_name()))
-                else:
-                    name = self.join_token.join((evaluator.get_name(), metric_name))
-                val_metrics[name] = metric_value
-        return val_metrics
+    @torch.no_grad()
+    def eval(self, model, device=None):
+        # type: (BaseModel, torch.Device) -> Optional[Dict[str, float]]
+        self.logger.info(f'Visualizing some predictions for {self.num_iterations} iteration(s)')
+        self.logger.info('-' * 120)
+
+        batch: Batch
+        for i, batch in enumerate(self.data_loader):
+
+            batch = batch.to(device)
+            model_outputs = model.predict(batch)
+            predicts, _ = self.translator.translate(model_outputs)
+
+            for metadata, text_str, predict in zip(batch.metadata, batch.text_str, predicts):
+                s = ''
+                for field in self.meta_fields:
+                    s += f'{field}: {metadata[field]}, '
+                s += f'Text: {text_str}, '
+                s += f'Predict: {predict}'
+                self.logger.info(s)
+
+            if (i + 1) >= self.num_iterations:
+                break

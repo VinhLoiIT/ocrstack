@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional
 
 import torch
 import torch.optim as optim
@@ -13,9 +13,8 @@ from ocrstack.models.base import BaseModel
 from torch.nn.utils.clip_grad import clip_grad_value_
 from torch.utils.data.dataloader import DataLoader
 
-from .checkpoint import ICkptSaver, LastCkpt, MonitorCkpt
-from .evaluator import Evaluator
-from .visualizer import Visualizer
+from .checkpoint import ICkptSaver
+from .evaluator import IEvaluator
 
 
 class Trainer(object):
@@ -29,9 +28,6 @@ class Trainer(object):
                  optimizer: optim.Optimizer,
                  cfg: Config,
                  lr_scheduler=None,
-                 evaluator: Optional[Evaluator] = None,
-                 visualizer: Visualizer = None,
-                 ckpt_saver: Optional[ICkptSaver] = None,
                  logger: Optional[ILogger] = None,
                  ):
         self.model = model
@@ -39,25 +35,13 @@ class Trainer(object):
         self.lr_scheduler = lr_scheduler
         self.cfg = cfg
         self.grad_scaler = torch.cuda.amp.GradScaler(enabled=cfg.TRAINER.USE_AMP)
-        self.evaluator = evaluator
         self.train_metrics = {
             'Loss': AverageMeter(),
             'Time': AverageMeter(),
         }
 
-        if cfg.TRAINER.ITER_CHECKPOINT is None:
-            ckpt_saver = None
-        elif ckpt_saver is None:
-            if cfg.TRAINER.MONITOR_METRIC is None:
-                self.ckpt_saver = LastCkpt()
-            else:
-                self.ckpt_saver = MonitorCkpt(cfg.TRAINER.MONITOR_METRIC,
-                                              cfg.TRAINER.MONITOR_METRIC_TYPE,
-                                              cfg.TRAINER.SAVE_TOP_CHECKPOINT)
-        else:
-            self.ckpt_saver = ckpt_saver
+        logging.basicConfig(format='[%(levelname)s] %(name)s: %(message)s', level=logging.INFO)
 
-        self.visualizer = visualizer
         if logger is None:
             self.logger = ComposeLogger([
                 ConsoleLogger(cfg.TRAINER.LOG_INTERVAL, name='Trainer'),
@@ -80,8 +64,14 @@ class Trainer(object):
         self.grad_scaler.update()
         return loss.item()
 
-    def train(self, train_loader: DataLoader):
+    def train(self,
+              train_loader: DataLoader,
+              evaluators: Optional[Iterable[IEvaluator]] = [],
+              ckpt_saver: Optional[ICkptSaver] = None):
+
         set_seed(self.cfg.TRAINER.SEED)
+
+        self.evaluators = evaluators if isinstance(evaluators, Iterable) else (evaluators,)
 
         self.model.to(self.cfg.TRAINER.DEVICE)
         self.model.train()
@@ -108,27 +98,30 @@ class Trainer(object):
                 if self.num_iteration % self.cfg.TRAINER.LOG_INTERVAL == 0:
                     loss_meter.reset()
 
-                if self.visualizer is not None and self.num_iteration % self.cfg.TRAINER.ITER_VISUALIZE == 0:
-                    self.model.eval()
-                    self.printer.info('Visualizing training process')
-                    self.visualizer.visualize(self.model, self.cfg.TRAINER.DEVICE,
-                                              self.cfg.TRAINER.NUM_ITER_VISUALIZE)
-                    self.model.train()
+                metrics: Dict[str, Dict[str, float]] = {
+                    'Train': {
+                        name: m.compute() for name, m in self.train_metrics.items()
+                    }
+                }
 
-                metrics: Dict[str, float] = {name: m.compute() for name, m in self.train_metrics.items()}
+                with torch.no_grad():
 
-                if self.evaluator is not None and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
-                    metrics = self.evaluator.eval(self.model, self.cfg.TRAINER.NUM_ITER_EVAL,
-                                                  self.cfg.TRAINER.DEVICE)
-                    self.logger.log_metrics(metrics, False, step=self.num_iteration)
-                    self.model.train()
+                    if self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
+                        self.model.eval()
+                        for evaluator in evaluators:
+                            metrics_ = evaluator.eval(self.model, self.cfg.TRAINER.DEVICE)
+                            if metrics_ is not None:
+                                metrics.update({evaluator.get_name(): metrics_})
 
-                if self.ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
-                    if self.ckpt_saver.is_better(metrics):
-                        self.printer.info('Found better checkpoint. Improved from %.4f to %.4f',
-                                          self.ckpt_saver.get_last_metric_value(),
-                                          self.ckpt_saver.get_metric_value(metrics))
-                        self.ckpt_saver.save(session_dir, self.state_dict(), metrics)
+                        # self.logger.log_metrics(metrics, False, step=self.num_iteration)
+                        self.model.train()
+
+                    if ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
+                        if ckpt_saver.is_better(metrics):
+                            self.printer.info('Found better checkpoint. Improved from %.4f to %.4f',
+                                              ckpt_saver.get_last_metric_value(),
+                                              ckpt_saver.get_metric_value(metrics))
+                            ckpt_saver.save(session_dir, self.state_dict(), metrics)
 
                 if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
                     break
