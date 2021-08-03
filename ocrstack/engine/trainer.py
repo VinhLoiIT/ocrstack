@@ -9,7 +9,7 @@ from ocrstack.data.collate import Batch
 from ocrstack.engine.logger import ConsoleLogger, ILogger, ComposeLogger, TensorboardLogger
 from ocrstack.engine.utils import set_seed
 from ocrstack.metrics.metric import AverageMeter
-from ocrstack.models.base import BaseModel
+from ocrstack.models.base import ITrainableModel
 from torch.nn.utils.clip_grad import clip_grad_value_
 from torch.utils.data.dataloader import DataLoader
 
@@ -24,7 +24,7 @@ class Trainer(object):
     '''
 
     def __init__(self,
-                 model: BaseModel,
+                 model: ITrainableModel,
                  optimizer: optim.Optimizer,
                  cfg: Config,
                  lr_scheduler=None,
@@ -50,11 +50,9 @@ class Trainer(object):
         else:
             self.logger = logger
 
-        self.printer = logging.getLogger('Trainer')
-
     def train_step(self, batch: Batch):
         batch = batch.to(self.cfg.TRAINER.DEVICE)
-        loss = self.model.train_batch(batch)
+        loss = self.model.forward_batch(batch)
         self.optimizer.zero_grad()
         self.grad_scaler.scale(loss).backward()
         self.grad_scaler.unscale_(self.optimizer)
@@ -85,7 +83,7 @@ class Trainer(object):
 
         self.num_iteration = 0
         self.epoch = 0
-        self.printer.info(f'Start training for {self.cfg.TRAINER.ITER_TRAIN} iteration(s)')
+        self.logger.log_info(f'Start training for {self.cfg.TRAINER.ITER_TRAIN} iteration(s)')
         while self.num_iteration < self.cfg.TRAINER.ITER_TRAIN:
             loss_meter = self.train_metrics['Loss']
             for i, batch in enumerate(train_loader):
@@ -118,9 +116,9 @@ class Trainer(object):
 
                     if ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
                         if ckpt_saver.is_better(metrics):
-                            self.printer.info('Found better checkpoint. Improved from %.4f to %.4f',
-                                              ckpt_saver.get_last_metric_value(),
-                                              ckpt_saver.get_metric_value(metrics))
+                            self.logger.log_info('Found better checkpoint. Improved from %.4f to %.4f',
+                                                 ckpt_saver.get_last_metric_value(),
+                                                 ckpt_saver.get_metric_value(metrics))
                             ckpt_saver.save(session_dir, self.state_dict(), metrics)
 
                 if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
@@ -150,19 +148,19 @@ class Trainer(object):
 
     def _save_config(self, session_dir: str):
         config_path = Path(session_dir, 'config.yaml')
-        self.printer.info(f'Save config to {config_path}')
+        self.logger.log_info(f'Save config to {config_path}')
         self.cfg.to_yaml(config_path)
 
     def _warmup(self, train_loader):
         self.model.train()
         if self.cfg.TRAINER.NUM_ITER_WARMUP > 0:
-            self.printer.info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
+            self.logger.log_info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
             for i, batch in enumerate(train_loader):
                 self.train_step(batch)
-                self.printer.debug(f'Warmed {i + 1} iteration(s)')
+                self.logger.log_info(f'Warmed {i + 1} iteration(s)')
                 if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
                     break
-            self.printer.info('Warmup trainer finished')
+            self.logger.log_info('Warmup trainer finished')
 
 
 def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:

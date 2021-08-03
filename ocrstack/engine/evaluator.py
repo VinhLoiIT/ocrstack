@@ -3,8 +3,9 @@ from typing import Dict, List, Optional, Union
 
 import torch
 from ocrstack.data.collate import Batch
+from ocrstack.metrics.metric import AverageMeter
 from ocrstack.metrics.ocr import ACCMeter, CERMeter, WERMeter
-from ocrstack.models.base import BaseModel
+from ocrstack.models.base import ITrainableModel
 from ocrstack.models.layers.translator import ITranslator
 from torch.utils.data.dataloader import DataLoader
 
@@ -15,7 +16,7 @@ class IEvaluator:
         raise NotImplementedError()
 
     def eval(self, model, device=None):
-        # type: (BaseModel, Optional[torch.Device]) -> Optional[Dict[str, float]]
+        # type: (ITrainableModel, Optional[torch.Device]) -> Optional[Dict[str, float]]
         raise NotImplementedError()
 
 
@@ -39,8 +40,38 @@ class BaseEvaluator(IEvaluator):
         raise NotImplementedError()
 
     def eval(self, model, device=None):
-        # type: (BaseModel, Optional[torch.Device]) -> Optional[Dict[str, float]]
+        # type: (ITrainableModel, Optional[torch.Device]) -> Optional[Dict[str, float]]
         raise NotImplementedError()
+
+
+class LossEvaluator(IEvaluator):
+
+    def __init__(self,
+                 data_loader: DataLoader,
+                 prefix: str = 'Validate',
+                 log_interval: Optional[int] = None) -> None:
+        super().__init__()
+        self.prefix = prefix
+        self.data_loader = data_loader
+
+        self.log_interval = log_interval
+        if log_interval is None:
+            self.log_interval = len(self.data_loader)
+
+    def get_name(self) -> str:
+        return f'{self.prefix}/Loss'
+
+    def eval(self, model, device=None):
+        # type: (ITrainableModel, Optional[torch.Device]) -> Optional[Dict[str, float]]
+        total_loss = AverageMeter()
+
+        for i, batch in self.data_loader:
+            loss = model.forward_batch(batch)
+            total_loss.add(loss.item() * len(batch), len(batch))
+
+            if (i + 1) % self.log_interval == 0:
+                pass
+            
 
 
 class MetricsEvaluator(BaseEvaluator):
@@ -75,7 +106,7 @@ class MetricsEvaluator(BaseEvaluator):
         return self.name
 
     def eval(self, model, device=None):
-        # type: (BaseModel, torch.Device) -> Optional[Dict[str, float]]
+        # type: (ITrainableModel, torch.Device) -> Optional[Dict[str, float]]
         for metric in self.metrics.values():
             metric.reset()
 
@@ -84,7 +115,7 @@ class MetricsEvaluator(BaseEvaluator):
         with torch.no_grad():
             for i, batch in enumerate(self.data_loader):
                 batch = batch.to(device)
-                predicts = model.predict(batch)
+                predicts = model.predict_batch(batch)
                 if self.translator is not None:
                     predicts = self.translator.translate(predicts)
                 for metric in self.metrics.values():
@@ -119,7 +150,7 @@ class VisualizeEvaluator(BaseEvaluator):
 
     @torch.no_grad()
     def eval(self, model, device=None):
-        # type: (BaseModel, torch.Device) -> Optional[Dict[str, float]]
+        # type: (ITrainableModel, torch.Device) -> Optional[Dict[str, float]]
         self.logger.info(f'Visualizing some predictions for {self.num_iterations} iteration(s)')
         self.logger.info('-' * 120)
 
@@ -127,7 +158,7 @@ class VisualizeEvaluator(BaseEvaluator):
         for i, batch in enumerate(self.data_loader):
 
             batch = batch.to(device)
-            model_outputs = model.predict(batch)
+            model_outputs = model.predict_batch(batch)
             predicts, _ = self.translator.translate(model_outputs)
 
             for metadata, text_str, predict in zip(batch.metadata, batch.text_str, predicts):

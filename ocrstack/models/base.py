@@ -1,44 +1,82 @@
-import torch.nn as nn
-from ocrstack.config.config import Config
+from typing import List, Tuple
+
+from torch import Tensor
+from torch.nn import Module
 from ocrstack.data.collate import Batch
 
 
-class IModel:
+class ITrainableModel(Module):
+
+    '''
+    This is a common interface for all models based on sequence-to-sequence approach.
+
+    The difference to `ICTCModel` is that `IS2SModel` require `max_length` parameter in decode functions to
+    avoid infinitely decoding.
+
+    We will use these methods to interact with your model.
+    '''
 
     def example_inputs(self):
         raise NotImplementedError()
 
-    def train_batch(self, batch: Batch):
+    def forward_batch(self, batch: Batch) -> Tensor:
+        '''
+        This method will be called during training/validating to receive loss value.
+
+        Returns:
+        --------
+        - loss: Tensor
+        '''
         raise NotImplementedError()
 
-    def predict(self, batch: Batch):
+    def predict_batch(self, batch: Batch) -> Tensor:
         raise NotImplementedError()
 
 
-class BaseModel(nn.Module, IModel):
+class IS2SModel(ITrainableModel):
 
-    def __init__(self, cfg: Config):
-        super().__init__()
-        self.cfg = cfg
+    '''
+    This is a common interface for all models based on sequence-to-sequence approach.
 
-    def example_inputs(self):
+    The difference to `ICTCModel` is that `IS2SModel` require `max_length` parameter in decode functions to
+    avoid infinitely decoding.
+
+    We will use these methods to interact with your model.
+    '''
+
+    def decode_greedy(self, images, image_mask, max_length):
+        # type: (Tensor, Tensor, int) -> Tuple[List[str], List[List[float]]]
+        '''
+        This method is for convenience only. In fact, it is a exactly decoding beamsearch where `beamsize=1`.
+        '''
         raise NotImplementedError()
 
-    def train_batch(self, batch: Batch):
+    def decode_beamsearch(self, images, image_mask, max_length, beamsize):
+        # type: (Tensor, Tensor, int, int) -> Tuple[List[str], List[List[float]]]
+        '''
+        '''
         raise NotImplementedError()
 
-    def predict(self, batch: Batch):
+
+class ICTCModel(ITrainableModel):
+
+    '''
+    This is a common interface for all models based on CTC approach.
+
+    The difference to `ICTCModel` is that `IS2SModel` require `max_length` parameter in decode functions to
+    avoid infinitely decoding.
+
+    We will use these methods to interact with your model.
+    '''
+
+    def decode_greedy(self, images, image_mask):
+        # type: (Tensor, Tensor) -> Tuple[List[str], List[List[float]]]
+        '''
+        '''
         raise NotImplementedError()
 
-    def build_backbone(self, cfg: Config) -> nn.Module:
-        cfg_node = cfg.MODEL.BACKBONE
-        if cfg_node.TYPE[:6] == 'resnet':
-            from ocrstack.models.backbone.resnet import resnet
-            backbone = resnet(cfg)
-            return backbone
-        if cfg_node.TYPE[:8] == 'densenet':
-            from ocrstack.models.backbone.densenet import densenet
-            backbone = densenet(cfg)
-            return backbone
-
-        raise ValueError(f'Backbone arch = {cfg_node.TYPE} is not supported')
+    def decode_beamsearch(self, images, image_mask, beamsize):
+        # type: (Tensor, Tensor, int) -> Tuple[List[str], List[List[float]]]
+        '''
+        '''
+        raise NotImplementedError()

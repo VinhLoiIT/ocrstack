@@ -3,7 +3,7 @@ from io import StringIO
 from typing import Dict, List, Optional
 
 import torch
-from ocrstack.models.base import BaseModel
+from ocrstack.models.base import ITrainableModel
 from torch.utils.tensorboard.writer import SummaryWriter
 
 
@@ -21,11 +21,14 @@ class ILogger:
     def log_scalars(self, name: str, scalar_dict: Dict[str, float], step: Optional[int] = None):
         raise NotImplementedError()
 
-    def log_model(self, model: BaseModel, device: str):
+    def log_model(self, model: ITrainableModel, device: str):
         raise NotImplementedError()
 
     def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
         # type: (Dict[str, float], bool, str, Optional[int]) -> None
+        raise NotImplementedError()
+
+    def log_info(self, info: str):
         raise NotImplementedError()
 
 
@@ -62,11 +65,14 @@ class NoLogger(BaseLogger):
     def log_scalars(self, name: str, scalar_dict: Dict[str, float], step: Optional[int] = None):
         pass
 
-    def log_model(self, model: BaseModel, device: str):
+    def log_model(self, model: ITrainableModel, device: str):
         pass
 
     def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
         # type: (Dict[str, float], bool, str, Optional[int]) -> None
+        pass
+
+    def log_info(self, info: str):
         pass
 
 
@@ -95,12 +101,15 @@ class ConsoleLogger(BaseLogger):
             writer.write(' - '.join([f'{name}: {value:.04f}' for name, value in scalar_dict.items()]))
             self._log(writer.getvalue(), step)
 
-    def log_model(self, model: BaseModel, device: str):
+    def log_model(self, model: ITrainableModel, device: str):
         try:
             import torchinfo
             torchinfo.summary(model, input_data=model.example_inputs(), device=device)
         except ImportError:
             self.logger.info(model)
+
+    def log_info(self, info: str):
+        self.logger.info(info)
 
 
 class TensorboardLogger(BaseLogger):
@@ -119,7 +128,7 @@ class TensorboardLogger(BaseLogger):
     def log_scalars(self, name: str, scalar_dict: Dict[str, float], step: Optional[int] = None):
         self.logger.add_scalars(name, scalar_dict, step)
 
-    def log_model(self, model: BaseModel, device: str):
+    def log_model(self, model: ITrainableModel, device: str):
         inputs = model.example_inputs()
         if inputs is None:
             pass
@@ -132,6 +141,9 @@ class TensorboardLogger(BaseLogger):
         else:
             raise RuntimeError('Unsupported example_inputs')
         self.logger.add_graph(model, input_to_model=inputs)
+
+    def log_info(self, info: str):
+        pass
 
 
 class ComposeLogger(BaseLogger):
@@ -155,7 +167,7 @@ class ComposeLogger(BaseLogger):
         for logger in self.loggers:
             logger.log_scalars(name, scalar_dict, step=step)
 
-    def log_model(self, model: BaseModel, device: str):
+    def log_model(self, model: ITrainableModel, device: str):
         for logger in self.loggers:
             logger.log_model(model, device)
 
@@ -163,3 +175,7 @@ class ComposeLogger(BaseLogger):
         # type: (Dict[str, float], bool, str, Optional[int]) -> None
         for logger in self.loggers:
             logger.log_metrics(metrics, group_name, sep_token, step)
+
+    def log_info(self, info: str):
+        for logger in self.loggers:
+            logger.log_info(info)
