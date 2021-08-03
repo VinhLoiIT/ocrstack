@@ -71,7 +71,6 @@ class LossEvaluator(IEvaluator):
 
             if (i + 1) % self.log_interval == 0:
                 pass
-            
 
 
 class MetricsEvaluator(BaseEvaluator):
