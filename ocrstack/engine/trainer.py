@@ -67,20 +67,81 @@ class Trainer(object):
               evaluators: Optional[Iterable[IEvaluator]] = [],
               ckpt_saver: Optional[ICkptSaver] = None):
 
-        set_seed(self.cfg.TRAINER.SEED)
+        session_dir = create_session_dir(self.cfg.TRAINER.LOG_DIR)
 
         self.evaluators = evaluators if isinstance(evaluators, Iterable) else (evaluators,)
 
         self.model.to(self.cfg.TRAINER.DEVICE)
-        self.model.train()
-
-        session_dir = create_session_dir(self.cfg.TRAINER.LOG_DIR)
         self.logger.open(session_dir)
         self.logger.log_model(self.model, self.cfg.TRAINER.DEVICE)
 
         self._save_config(session_dir)
         self._warmup(train_loader)
 
+        self.model.train()
+
+        set_seed(self.cfg.TRAINER.SEED)
+        self.train_loop(session_dir, train_loader, evaluators, ckpt_saver)
+
+        self.logger.close()
+
+    def train_loop(self,
+                   session_dir: str,
+                   train_loader: DataLoader,
+                   evaluators: Optional[Iterable[IEvaluator]] = [],
+                   ckpt_saver: Optional[ICkptSaver] = None):
+        raise NotImplementedError()
+
+    def state_dict(self):
+        state = {
+            'model': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'lr_scheduler': None if self.lr_scheduler is None else self.lr_scheduler.state_dict(),
+            'epoch': self.epoch,
+            'num_iteration': self.num_iteration,
+        }
+        return state
+
+    def load_state_dict(self, state_dict):
+        self.model.load_state_dict(state_dict['model'])
+        self.optimizer.load_state_dict(state_dict['optimizer'])
+        if state_dict['lr_scheduler'] is not None:
+            self.lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
+        self.epoch = state_dict['epoch']
+        self.num_iteration = state_dict['num_iteration']
+
+    def _save_config(self, session_dir: str):
+        config_path = Path(session_dir, 'config.yaml')
+        self.logger.log_info(f'Save config to {config_path}')
+        self.cfg.to_yaml(config_path)
+
+    def _warmup(self, train_loader):
+        self.model.train()
+        if self.cfg.TRAINER.NUM_ITER_WARMUP > 0:
+            self.logger.log_info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
+            for i, batch in enumerate(train_loader):
+                self.train_step(batch)
+                self.logger.log_info(f'Warmed {i + 1} iteration(s)')
+                if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
+                    break
+            self.logger.log_info('Warmup trainer finished')
+
+
+class IterationTrainer(Trainer):
+
+    def __init__(self,
+                 model: ITrainableModel,
+                 optimizer: optim.Optimizer,
+                 cfg: Config,
+                 lr_scheduler,
+                 logger: Optional[ILogger] = None):
+        super().__init__(model, optimizer, cfg, lr_scheduler=lr_scheduler, logger=logger)
+
+    def train_loop(self,
+                   session_dir: str,
+                   train_loader: DataLoader,
+                   evaluators: Optional[Iterable[IEvaluator]],
+                   ckpt_saver: Optional[ICkptSaver]):
         self.num_iteration = 0
         self.epoch = 0
         self.logger.log_info(f'Start training for {self.cfg.TRAINER.ITER_TRAIN} iteration(s)')
@@ -126,41 +187,61 @@ class Trainer(object):
 
             self.epoch += 1
 
-        self.logger.close()
 
-    def state_dict(self):
-        state = {
-            'model': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'lr_scheduler': None if self.lr_scheduler is None else self.lr_scheduler.state_dict(),
-            'epoch': self.epoch,
-            'num_iteration': self.num_iteration,
-        }
-        return state
+class EpochTrainer(Trainer):
 
-    def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict['model'])
-        self.optimizer.load_state_dict(state_dict['optimizer'])
-        if state_dict['lr_scheduler'] is not None:
-            self.lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
-        self.epoch = state_dict['epoch']
-        self.num_iteration = state_dict['num_iteration']
+    def __init__(self,
+                 model: ITrainableModel,
+                 optimizer: optim.Optimizer,
+                 cfg: Config,
+                 lr_scheduler,
+                 logger: Optional[ILogger] = None):
+        super().__init__(model, optimizer, cfg, lr_scheduler=lr_scheduler, logger=logger)
 
-    def _save_config(self, session_dir: str):
-        config_path = Path(session_dir, 'config.yaml')
-        self.logger.log_info(f'Save config to {config_path}')
-        self.cfg.to_yaml(config_path)
+    def train_loop(self,
+                   session_dir: str,
+                   train_loader: DataLoader,
+                   evaluators: Optional[Iterable[IEvaluator]],
+                   ckpt_saver: Optional[ICkptSaver]):
+        self.num_iteration = 0
 
-    def _warmup(self, train_loader):
-        self.model.train()
-        if self.cfg.TRAINER.NUM_ITER_WARMUP > 0:
-            self.logger.log_info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
+        self.logger.log_info(f'Start training for {self.cfg.TRAINER.NUM_EPOCHS} epoch(s)')
+        for epoch in range(self.cfg.TRAINER.NUM_EPOCHS):
+            self.epoch = epoch
+
+            self.model.train()
+            loss_meter = self.train_metrics['Loss']
             for i, batch in enumerate(train_loader):
-                self.train_step(batch)
-                self.logger.log_info(f'Warmed {i + 1} iteration(s)')
-                if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
-                    break
-            self.logger.log_info('Warmup trainer finished')
+                with torch.cuda.amp.autocast(enabled=self.cfg.TRAINER.USE_AMP):
+                    loss = self.train_step(batch)
+                loss_meter.update(loss, len(batch))
+                self.num_iteration += 1
+
+                self.logger.log_scalar('Train/Loss', loss, self.num_iteration)
+                if self.num_iteration % self.cfg.TRAINER.LOG_INTERVAL == 0:
+                    loss_meter.reset()
+
+                metrics: Dict[str, Dict[str, float]] = {
+                    'Train': {
+                        name: m.compute() for name, m in self.train_metrics.items()
+                    }
+                }
+
+            with torch.no_grad():
+                self.model.eval()
+                for evaluator in evaluators:
+                    metrics_ = evaluator.eval(self.model, self.cfg.TRAINER.DEVICE)
+                    if metrics_ is not None:
+                        metrics.update({evaluator.get_name(): metrics_})
+
+                    # self.logger.log_metrics(metrics, False, step=self.num_iteration)
+
+                # if ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
+                #     if ckpt_saver.is_better(metrics):
+                #         self.logger.log_info('Found better checkpoint. Improved from %.4f to %.4f',
+                #                                 ckpt_saver.get_last_metric_value(),
+                #                                 ckpt_saver.get_metric_value(metrics))
+                #         ckpt_saver.save(session_dir, self.state_dict(), metrics)
 
 
 def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:
