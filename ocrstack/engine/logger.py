@@ -24,8 +24,8 @@ class ILogger:
     def log_model(self, model: ITrainableModel, device: str):
         raise NotImplementedError()
 
-    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
-        # type: (Dict[str, float], bool, str, Optional[int]) -> None
+    def log_metrics(self, metrics, step=None):
+        # type: (Dict[str, Dict[str, float]], str, Optional[int]) -> None
         raise NotImplementedError()
 
     def log_info(self, info: str):
@@ -34,27 +34,11 @@ class ILogger:
 
 class BaseLogger(ILogger):
 
-    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
-        # type: (Dict[str, float], bool, str, Optional[int]) -> None
-        if not group_name:
-            for name, val in metrics.items():
-                self.log_scalar(name, val, step)
-            return
-
-        assert sep_token is not None
-        groups: Dict[str, Dict[str, float]] = {}
-        for name, val in metrics.items():
-            splits = name.split(sep_token, maxsplit=1)
-            if len(splits) == 1:
-                self.log_scalar(name, val, step)
-            else:
-                group_name, metric_name = splits
-                group = groups.get(group_name, {})
-                group[metric_name] = val
-                groups[group_name] = group
-
-        for group_name, group_metric_dict in groups.items():
-            self.log_scalars(group_name, group_metric_dict, step)
+    def log_metrics(self, metrics, prefix='', step=None):
+        # type: (Dict[str, Dict[str, float]], str, Optional[int]) -> None
+        for prefix, metric in metrics.items():
+            for k, v in metric.items():
+                self.log_scalar(f'{prefix}/{k}', v, step)
 
 
 class NoLogger(BaseLogger):
@@ -68,8 +52,8 @@ class NoLogger(BaseLogger):
     def log_model(self, model: ITrainableModel, device: str):
         pass
 
-    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
-        # type: (Dict[str, float], bool, str, Optional[int]) -> None
+    def log_metrics(self, metrics, step=None):
+        # type: (Dict[str, Dict[str, float]], Optional[int]) -> None
         pass
 
     def log_info(self, info: str):
@@ -171,10 +155,10 @@ class ComposeLogger(BaseLogger):
         for logger in self.loggers:
             logger.log_model(model, device)
 
-    def log_metrics(self, metrics, group_name=True, sep_token='/', step=None):
-        # type: (Dict[str, float], bool, str, Optional[int]) -> None
+    def log_metrics(self, metrics, step=None):
+        # type: (Dict[str, Dict[str, float]], Optional[int]) -> None
         for logger in self.loggers:
-            logger.log_metrics(metrics, group_name, sep_token, step)
+            logger.log_metrics(metrics, step)
 
     def log_info(self, info: str):
         for logger in self.loggers:

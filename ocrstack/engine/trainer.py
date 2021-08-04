@@ -172,14 +172,16 @@ class IterationTrainer(Trainer):
                             if metrics_ is not None:
                                 metrics.update({evaluator.get_name(): metrics_})
 
-                        # self.logger.log_metrics(metrics, False, step=self.num_iteration)
+                        self.logger.log_metrics(metrics, step=self.num_iteration)
                         self.model.train()
 
-                    if ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
+                        print(metrics)
+
                         if ckpt_saver.is_better(metrics):
-                            self.logger.log_info('Found better checkpoint. Improved from %.4f to %.4f',
-                                                 ckpt_saver.get_last_metric_value(),
-                                                 ckpt_saver.get_metric_value(metrics))
+                            self.logger.log_info('Found better checkpoint. Improved from {:.4f} to {:.4f}'.format(
+                                ckpt_saver.get_last_metric_value(),
+                                ckpt_saver.get_metric_value(metrics))
+                            )
                             ckpt_saver.save(session_dir, self.state_dict(), metrics)
 
                 if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
@@ -236,12 +238,12 @@ class EpochTrainer(Trainer):
 
                     # self.logger.log_metrics(metrics, False, step=self.num_iteration)
 
-                # if ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
-                #     if ckpt_saver.is_better(metrics):
-                #         self.logger.log_info('Found better checkpoint. Improved from %.4f to %.4f',
-                #                                 ckpt_saver.get_last_metric_value(),
-                #                                 ckpt_saver.get_metric_value(metrics))
-                #         ckpt_saver.save(session_dir, self.state_dict(), metrics)
+                if ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
+                    if ckpt_saver.is_better(metrics):
+                        self.logger.log_info('Found better checkpoint. Improved from %.4f to %.4f',
+                                             ckpt_saver.get_last_metric_value(),
+                                             ckpt_saver.get_metric_value(metrics))
+                        ckpt_saver.save(session_dir, self.state_dict(), metrics)
 
 
 def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:

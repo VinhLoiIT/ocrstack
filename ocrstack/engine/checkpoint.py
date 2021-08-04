@@ -65,7 +65,7 @@ class MonitorCkpt(ICkptSaver):
     def save(self, session_dir, trainer_state, eval_metrics):
         # type: (str, Dict, Dict[str, Dict[str, float]]) -> None
         current_metric_value = self.get_metric_value(eval_metrics)
-        self.__last_metric_value = self.get_last_metric_value(current_metric_value)
+        self.__last_metric_value = current_metric_value
 
         filename = f'{self.evaluator_name}_{self.metric_monitor}={current_metric_value:.04f}.pth'
         checkpoint_path = Path(session_dir, 'ckpt', filename)

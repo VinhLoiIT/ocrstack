@@ -122,16 +122,16 @@ class MetricsEvaluator(BaseEvaluator):
 
                 if (i + 1) % self.log_interval == 0:
                     self.logger.info({
-                        f'{name}': metric.compute()
-                        for name, metric in self.metrics.items()
+                        f'{metric_name}': metric.compute()
+                        for metric_name, metric in self.metrics.items()
                     })
 
                 if (i + 1) >= self.num_iterations:
                     break
 
         return {
-            f'{self.name}/{name}': metric.compute()
-            for name, metric in self.metrics.items()
+            f'{metric_name}': metric.compute()
+            for metric_name, metric in self.metrics.items()
         }
 
 
