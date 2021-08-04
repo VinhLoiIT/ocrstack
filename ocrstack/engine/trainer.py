@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Iterable, Optional
 
 import torch
 import torch.optim as optim
@@ -85,6 +85,29 @@ class Trainer(object):
 
         self.logger.close()
 
+    def evaluate(self,
+                 evaluators: Iterable[IEvaluator],
+                 session_dir: str,
+                 ckpt_saver: Optional[ICkptSaver] = None):
+
+        self.model.eval()
+        metrics = {}
+        with torch.no_grad():
+            for evaluator in evaluators:
+                metrics_ = evaluator.eval(self.model, self.cfg.TRAINER.DEVICE)
+                if metrics_ is not None:
+                    metrics[evaluator.get_name()] = metrics_
+
+            self.logger.log_metrics(metrics, step=self.num_iteration)
+            self.model.train()
+
+            if ckpt_saver.is_better(metrics):
+                self.logger.log_info('Found better checkpoint. Improved from {:.4f} to {:.4f}'.format(
+                    ckpt_saver.get_last_metric_value(),
+                    ckpt_saver.get_metric_value(metrics))
+                )
+                ckpt_saver.save(session_dir, self.state_dict(), metrics)
+
     def train_loop(self,
                    session_dir: str,
                    train_loader: DataLoader,
@@ -157,32 +180,8 @@ class IterationTrainer(Trainer):
                 if self.num_iteration % self.cfg.TRAINER.LOG_INTERVAL == 0:
                     loss_meter.reset()
 
-                metrics: Dict[str, Dict[str, float]] = {
-                    'Train': {
-                        name: m.compute() for name, m in self.train_metrics.items()
-                    }
-                }
-
-                with torch.no_grad():
-
-                    if self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
-                        self.model.eval()
-                        for evaluator in evaluators:
-                            metrics_ = evaluator.eval(self.model, self.cfg.TRAINER.DEVICE)
-                            if metrics_ is not None:
-                                metrics.update({evaluator.get_name(): metrics_})
-
-                        self.logger.log_metrics(metrics, step=self.num_iteration)
-                        self.model.train()
-
-                        print(metrics)
-
-                        if ckpt_saver.is_better(metrics):
-                            self.logger.log_info('Found better checkpoint. Improved from {:.4f} to {:.4f}'.format(
-                                ckpt_saver.get_last_metric_value(),
-                                ckpt_saver.get_metric_value(metrics))
-                            )
-                            ckpt_saver.save(session_dir, self.state_dict(), metrics)
+                if evaluators is not None and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
+                    self.evaluate(evaluators, session_dir, ckpt_saver)
 
                 if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
                     break
@@ -203,8 +202,8 @@ class EpochTrainer(Trainer):
     def train_loop(self,
                    session_dir: str,
                    train_loader: DataLoader,
-                   evaluators: Optional[Iterable[IEvaluator]],
-                   ckpt_saver: Optional[ICkptSaver]):
+                   evaluators: Optional[Iterable[IEvaluator]] = None,
+                   ckpt_saver: Optional[ICkptSaver] = None):
         self.num_iteration = 0
 
         self.logger.log_info(f'Start training for {self.cfg.TRAINER.NUM_EPOCHS} epoch(s)')
@@ -223,27 +222,8 @@ class EpochTrainer(Trainer):
                 if self.num_iteration % self.cfg.TRAINER.LOG_INTERVAL == 0:
                     loss_meter.reset()
 
-                metrics: Dict[str, Dict[str, float]] = {
-                    'Train': {
-                        name: m.compute() for name, m in self.train_metrics.items()
-                    }
-                }
-
-            with torch.no_grad():
-                self.model.eval()
-                for evaluator in evaluators:
-                    metrics_ = evaluator.eval(self.model, self.cfg.TRAINER.DEVICE)
-                    if metrics_ is not None:
-                        metrics.update({evaluator.get_name(): metrics_})
-
-                    # self.logger.log_metrics(metrics, False, step=self.num_iteration)
-
-                if ckpt_saver is not None and self.num_iteration % self.cfg.TRAINER.ITER_CHECKPOINT == 0:
-                    if ckpt_saver.is_better(metrics):
-                        self.logger.log_info('Found better checkpoint. Improved from %.4f to %.4f',
-                                             ckpt_saver.get_last_metric_value(),
-                                             ckpt_saver.get_metric_value(metrics))
-                        ckpt_saver.save(session_dir, self.state_dict(), metrics)
+            if evaluators is not None and self.num_iteration % self.cfg.TRAINER.STEP_EVAL == 0:
+                self.evaluate(evaluators, session_dir, ckpt_saver)
 
 
 def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:
