@@ -22,7 +22,7 @@ class AttentionLSTMCell(nn.Module):
     - memory_key_padding_mask: (B, S)
     """
 
-    def __init__(self, memory_size, embed_size, hidden_size, num_layers=1, bias=True):
+    def __init__(self, memory_size, embed_size, hidden_size, num_layers=1, num_heads=1, bias=True):
         super().__init__()
         assert memory_size == hidden_size
 
@@ -34,7 +34,8 @@ class AttentionLSTMCell(nn.Module):
         self.lstm_cells.append(first_cell)
         self.lstm_cells.extend(later_cells)
 
-        self.attention = DotProductAttention()
+        self.attention = DotProductAttention(scaled=True, embed_dim=hidden_size,
+                                             k_dim=memory_size, v_dim=memory_size, num_heads=num_heads)
         self.out = nn.Linear(hidden_size, embed_size)
 
     def forward(self,
