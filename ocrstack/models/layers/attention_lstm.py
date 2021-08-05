@@ -14,16 +14,16 @@ class AttentionLSTMCell(nn.Module):
     -------
     - memory: (B, S, E1)
     - prev_predict: (B, E2)
-    - prev_hidden, prev_cell: (B, num_layers * hidden_size)
+    - prev_hidden, prev_cell: (B, num_cells * hidden_size)
     - memory_key_padding_mask: (B, S)
     """
 
-    def __init__(self, memory_size, embed_size, hidden_size, num_layers=1, num_heads=1, bias=True):
+    def __init__(self, memory_size, embed_size, hidden_size, num_cells=1, num_heads=1, bias=True):
         super().__init__()
         self.lstm_cells = nn.ModuleList()
         first_cell = nn.LSTMCell(hidden_size + embed_size, hidden_size, bias)
-        later_cells = [nn.LSTMCell(hidden_size, hidden_size, bias=bias) for _ in range(num_layers - 1)]
-        self.num_layers = num_layers
+        later_cells = [nn.LSTMCell(hidden_size, hidden_size, bias=bias) for _ in range(num_cells - 1)]
+        self.num_cells = num_cells
         self.hidden_size = hidden_size
         self.lstm_cells.append(first_cell)
         self.lstm_cells.extend(later_cells)
@@ -43,7 +43,7 @@ class AttentionLSTMCell(nn.Module):
         inputs = torch.cat((prev_predict, prev_attn), dim=1)                    # B, E + H
 
         if prev_state is None:
-            zeros = torch.zeros(inputs.size(0), self.num_layers * self.hidden_size, device=inputs.device)
+            zeros = torch.zeros(inputs.size(0), self.num_cells * self.hidden_size, device=inputs.device)
             prev_state = (zeros, zeros)
 
         prev_hidden, prev_cell = prev_state
@@ -74,16 +74,16 @@ class AttentionGRUCell(nn.Module):
     -------
     - memory: (B, S, E1)
     - prev_predict: (B, E2)
-    - prev_hidden: (B, num_layers * hidden_size)
+    - prev_hidden: (B, num_cells * hidden_size)
     - memory_key_padding_mask: (B, S)
     """
 
-    def __init__(self, memory_size, embed_size, hidden_size, num_layers=1, num_heads=1, bias=True):
+    def __init__(self, memory_size, embed_size, hidden_size, num_cells=1, num_heads=1, bias=True):
         super().__init__()
         self.gru_cells = nn.ModuleList()
         first_cell = nn.GRUCell(hidden_size + embed_size, hidden_size, bias)
-        later_cells = [nn.GRUCell(hidden_size, hidden_size, bias=bias) for _ in range(num_layers - 1)]
-        self.num_layers = num_layers
+        later_cells = [nn.GRUCell(hidden_size, hidden_size, bias=bias) for _ in range(num_cells - 1)]
+        self.num_cells = num_cells
         self.hidden_size = hidden_size
         self.gru_cells.append(first_cell)
         self.gru_cells.extend(later_cells)
@@ -103,7 +103,7 @@ class AttentionGRUCell(nn.Module):
         inputs = torch.cat((prev_predict, prev_attn), dim=1)                    # B, E + H
 
         if prev_state is None:
-            prev_state = torch.zeros(inputs.size(0), self.num_layers * self.hidden_size, device=inputs.device)
+            prev_state = torch.zeros(inputs.size(0), self.num_cells * self.hidden_size, device=inputs.device)
 
         out_hidden = torch.empty_like(prev_state)
 
