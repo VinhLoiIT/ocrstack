@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Optional, Tuple
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -9,48 +9,7 @@ from torch import Tensor
 from ..utils import generate_square_subsequent_mask
 
 
-def _decode_unimplemented(self, *input: Any) -> None:
-    r"""Defines the computation performed at every call.
-
-    Should be overridden by all subclasses.
-
-    .. note::
-        Although the recipe for forward pass needs to be defined within
-        this function, one should call the :class:`Module` instance afterwards
-        instead of this since the former takes care of running the
-        registered hooks while the latter silently ignores them.
-    """
-    raise NotImplementedError
-
-
-class BaseDecoder(nn.Module):
-
-    '''
-    Base class for the Decoder component in Seq2Seq architecture
-
-    All derivated classes from this class should perform:
-    - Embedding text string from sequence of token indexes to the corresponding Tensor
-    - Classify embedded tensor from embedded dimension to the size of vocabulary
-    - Decoding a sequence from the source sequence
-    '''
-    decode: Callable[..., Any] = _decode_unimplemented
-
-    def build_embedding(self, cfg: Config) -> Tuple[nn.Module, nn.Module]:
-        out_embed = nn.Linear(cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
-                              cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
-                              bias=cfg.MODEL.TEXT_EMBED.OUT_BIAS)
-
-        in_embed = nn.Embedding(cfg.MODEL.TEXT_EMBED.VOCAB_SIZE,
-                                cfg.MODEL.TEXT_EMBED.EMBED_SIZE,
-                                cfg.MODEL.TEXT_EMBED.PAD_IDX)
-
-        if cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT:
-            in_embed.weight = out_embed.weight
-
-        return in_embed, out_embed
-
-
-class TransformerDecoder(BaseDecoder):
+class TransformerDecoder(nn.Module):
 
     '''
     This class adapts `nn.TransformerDecoder` class to the stack
@@ -126,7 +85,7 @@ class TransformerDecoder(BaseDecoder):
         return torch.cat(outputs, dim=1)                                    # [B, T, V]
 
 
-class AttentionRecurrentDecoder(BaseDecoder):
+class AttentionRecurrentDecoder(nn.Module):
 
     def __init__(self,
                  in_embed: nn.Module,
@@ -218,7 +177,7 @@ class AttentionRecurrentDecoder(BaseDecoder):
         return torch.stack(outputs, dim=1)
 
 
-class VisualLSTMDecoder(BaseDecoder):
+class VisualLSTMDecoder(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.lstm = nn.LSTM(
