@@ -35,10 +35,13 @@ class AttentionLSTMCell(nn.Module):
     def forward(self,
                 memory: Tensor,
                 prev_predict: Tensor,
-                prev_attn: Tensor,
+                prev_attn: Optional[Tensor] = None,
                 prev_state: Optional[Tuple[Tensor, Tensor]] = None,
                 memory_key_padding_mask: Optional[Tensor] = None
                 ) -> Tuple[Tensor, Tensor, Tuple[Tensor, Tensor]]:
+
+        if prev_attn is None:
+            prev_attn = torch.zeros(memory.size(0), self.hidden_size, device=memory.device)
 
         inputs = torch.cat((prev_predict, prev_attn), dim=1)                    # B, E + H
 
@@ -95,10 +98,13 @@ class AttentionGRUCell(nn.Module):
     def forward(self,
                 memory: Tensor,
                 prev_predict: Tensor,
-                prev_attn: Tensor,
+                prev_attn: Optional[Tensor],
                 prev_state: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None
                 ) -> Tuple[Tensor, Tensor, Tuple[Tensor, Tensor]]:
+
+        if prev_attn is None:
+            prev_attn = torch.zeros(memory.size(0), self.hidden_size, device=memory.device)
 
         inputs = torch.cat((prev_predict, prev_attn), dim=1)                    # B, E + H
 
