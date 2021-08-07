@@ -7,7 +7,6 @@ from ocrstack.config.config import Config
 from torch import Tensor
 
 from ..utils import generate_square_subsequent_mask
-from .positional_encoding import PositionalEncoding1d
 
 
 def _decode_unimplemented(self, *input: Any) -> None:
@@ -51,32 +50,34 @@ class BaseDecoder(nn.Module):
         return in_embed, out_embed
 
 
-class TransformerDecoderAdapter(BaseDecoder):
+class TransformerDecoder(BaseDecoder):
 
     '''
     This class adapts `nn.TransformerDecoder` class to the stack
     '''
 
-    def __init__(self, cfg):
-        super(TransformerDecoderAdapter, self).__init__()
-        self.in_embed, self.out_embed = self.build_embedding(cfg)
-        self.positional_encoding = self.build_positional_encoding(cfg)
-        self.decoder = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(cfg.MODEL.DECODER.D_MODEL, cfg.MODEL.DECODER.NUM_HEADS),
-            cfg.MODEL.DECODER.NUM_LAYERS
-        )
-        self.sos_idx = cfg.MODEL.TEXT_EMBED.SOS_IDX
-        self.eos_idx = cfg.MODEL.TEXT_EMBED.EOS_IDX
+    def __init__(self,
+                 in_embed: nn.Module,
+                 out_embed: nn.Module,
+                 transformer_layer,
+                 sos_idx: int,
+                 eos_idx: int,
+                 pad_idx: int,
+                 num_layers: int = 1,
+                 layer_norm: Optional[nn.LayerNorm] = None):
+        super(TransformerDecoder, self).__init__()
+        self.in_embed = in_embed
+        self.out_embed = out_embed
+        self.layers = _get_clones(transformer_layer, num_layers)
+        self.layer_norm = layer_norm
 
-    def build_positional_encoding(self, cfg: Config) -> nn.Module:
-        if cfg.MODEL.TEXT_EMBED.POS_ENC_TYPE is None:
-            return None
+        self.sos_idx = sos_idx
+        self.eos_idx = eos_idx
+        self.pad_idx = pad_idx
+        self.num_layers = num_layers
 
-        if cfg.MODEL.TEXT_EMBED.POS_ENC_TYPE == 'sinusoidal':
-            return PositionalEncoding1d(cfg.MODEL.TEXT_EMBED.EMBED_SIZE)
-
-    def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
-        # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tensor
+    def forward(self, memory, tgt, memory_key_padding_mask=None):
+        # type: (Tensor, Tensor, Optional[Tensor]) -> Tensor
         '''
         Arguments:
         ----------
@@ -87,46 +88,42 @@ class TransformerDecoderAdapter(BaseDecoder):
         --------
         - logits: (B, T, V)
         '''
-        # Since transformer components working with time-first tensor, we should transpose the shape first
+        tgt_key_padding_mask = (tgt == self.pad_idx)
         tgt = self.in_embed(tgt)                    # [B, T, E]
-        tgt = tgt.transpose(0, 1)                   # [T, B, E]
-
-        if self.positional_encoding is not None:
-            tgt = self.positional_encoding(tgt)     # [T, B, E]
-
-        memory = memory.transpose(0, 1)             # [S, B, E]
-        tgt_mask = generate_square_subsequent_mask(tgt.size(0)).to(memory.device)
+        tgt_mask = generate_square_subsequent_mask(tgt.size(1)).unsqueeze(0).to(memory.device)
         memory_mask = None
-        output = self.decoder(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask)
-        output = output.transpose(0, 1)                 # [B, T, E]
-        output = self.out_embed(output)                 # [B, T, V]
-        return output
+
+        out = tgt
+        for layer in self.layers:
+            out = layer(out, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask)
+
+        if self.layer_norm:
+            out = self.layer_norm(out)
+
+        out = self.out_embed(out)                   # [B, T, V]
+        return out
 
     @torch.jit.export
     def decode(self, memory, max_length, memory_key_padding_mask=None):
         # type: (Tensor, int, Optional[Tensor]) -> Tensor
-        batch_size = memory.size(0)
-        inputs = torch.empty(batch_size, 1, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
-        outputs: List[Tensor] = [
-            F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)
-        ]
-        end_flag = torch.zeros(batch_size, dtype=torch.bool)
+        outputs: List[Tensor] = []
+        inputs = torch.full((memory.size(0), 1), self.sos_idx, dtype=torch.long, device=memory.device)
+        end_flag = torch.zeros(memory.size(0), dtype=torch.bool, device=memory.device)
         for _ in range(max_length):
-            text = self.forward(memory, inputs, memory_key_padding_mask, None)  # [B, T, V]
-            output = F.softmax(text[:, [-1]], dim=-1)                           # [B, 1, V]
-            outputs.append(output)                                              # [[B, 1, V]]
-            output = output.argmax(-1, keepdim=False)                           # [B, 1]
-            inputs = torch.cat((inputs, output), dim=1)                         # [B, T + 1]
+            output = self.forward(memory, inputs, memory_key_padding_mask)  # [B, T, V]
+            output = F.softmax(output[:, [-1]], dim=-1)                     # [B, 1, V]
+            outputs.append(output)                                          # [[B, 1, V]]
+            output = output.argmax(-1, keepdim=False)                       # [B, 1]
+            inputs = torch.cat((inputs, output), dim=1)                     # [B, T + 1]
 
             # set flag for early break
-            output = output.squeeze(1)               # [B]
-            current_end = output == self.eos_idx     # [B]
-            current_end = current_end.cpu()
+            output = output.squeeze(1)                                      # [B]
+            current_end = output == self.eos_idx                            # [B]
             end_flag |= current_end
             if end_flag.all():
                 break
 
-        return torch.cat(outputs, dim=1)                                   # [B, T, V]
+        return torch.cat(outputs, dim=1)                                    # [B, T, V]
 
 
 class AttentionRecurrentDecoder(BaseDecoder):
@@ -254,3 +251,9 @@ class VisualLSTMDecoder(BaseDecoder):
         lengths = torch.empty(B, device=images.device, dtype=torch.long).fill_(T)
 
         return outputs, lengths
+
+
+def _get_clones(layer: nn.Module, num_layers: int) -> nn.ModuleList:
+    from copy import deepcopy
+    layers = nn.ModuleList([deepcopy(layer) for _ in range(num_layers)])
+    return layers
