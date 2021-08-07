@@ -7,7 +7,6 @@ from ocrstack.config.config import Config
 from torch import Tensor
 
 from ..utils import generate_square_subsequent_mask
-from .attention import DotProductAttention
 from .positional_encoding import PositionalEncoding1d
 
 
@@ -130,79 +129,95 @@ class TransformerDecoderAdapter(BaseDecoder):
         return torch.cat(outputs, dim=1)                                   # [B, T, V]
 
 
-class AttentionLSTMDecoder(BaseDecoder):
+class AttentionRecurrentDecoder(BaseDecoder):
 
-    def __init__(self, cfg: Config):
-        super(AttentionLSTMDecoder, self).__init__()
-        self.in_embed, self.out_embed = self.build_embedding(cfg)
-        self.lstm = nn.LSTMCell(cfg.MODEL.TEXT_EMBED.EMBED_SIZE + cfg.MODEL.DECODER.HIDDEN_SIZE,
-                                cfg.MODEL.DECODER.HIDDEN_SIZE)
-        self.attention = DotProductAttention(scaled=True)
-        self.teacher_forcing = cfg.MODEL.DECODER.TEACHER_FORCING
-        self.sos_idx = cfg.MODEL.TEXT_EMBED.SOS_IDX
-        self.eos_idx = cfg.MODEL.TEXT_EMBED.EOS_IDX
+    def __init__(self,
+                 in_embed: nn.Module,
+                 out_embed: nn.Module,
+                 recurrent_layer,
+                 sos_idx: int,
+                 eos_idx: int,
+                 num_layers: int = 1,
+                 p_teacher_forcing: float = 1.):
+        super(AttentionRecurrentDecoder, self).__init__()
 
-    def forward(self, memory, tgt, memory_key_padding_mask=None, tgt_key_padding_mask=None):
-        # type: (Tensor, Tensor, Optional[Tensor], Optional[Tensor]) -> Tensor
+        self.in_embed = in_embed
+        self.out_embed = out_embed
+
+        self.recurrent_layer = recurrent_layer
+        self.p_teacher_forcing = p_teacher_forcing
+        self.sos_idx = sos_idx
+        self.eos_idx = eos_idx
+
+        assert num_layers == 1, 'Multilayer is not supported yet'
+        self.num_layers = num_layers
+
+    def forward(self, memory, tgt, memory_key_padding_mask=None):
+        # type: (Tensor, Tensor, Optional[Tensor]) -> Tensor
         '''
         memory: (B, T, E)
         tgt: (B, T)
         '''
-        hidden, cell = self._init_hidden(memory.size(0), memory.device)
         outputs: List[Tensor] = []
 
+        prev_predict = torch.full((memory.size(0),), fill_value=self.sos_idx, dtype=torch.long, device=memory.device)
+        prev_predict = self.in_embed(prev_predict)
+        prev_attn = None
+        prev_state = None
+
         for t in range(tgt.size(1)):
-            context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
-            context = context.squeeze(1)                                            # B, H
-            if self.teacher_forcing or t == 0:
-                inputs = torch.cat((context, self.in_embed(tgt[:, t])), dim=-1)     # B, H + E
-            else:
-                inputs = torch.cat((context, hidden), dim=-1)                       # B, E + V
-            hidden, cell = self.lstm(inputs, (hidden, cell))                        # B, H
-            output = self.out_embed(hidden)                                         # B, V
+            out, context, state = self.recurrent_layer(memory, prev_predict, prev_attn,
+                                                       prev_state, memory_key_padding_mask)
+            output = self.out_embed(out)                                            # B, V
             outputs.append(output)                                                  # [[B, V]]
+
+            teacher_forcing = (torch.rand(1) < self.p_teacher_forcing).item()
+            if teacher_forcing:
+                prev_predict = self.in_embed(tgt[:, t])
+            else:
+                prev_predict = self.in_embed(output.argmax(-1))
+            prev_attn = context
+            prev_state = state
+
         return torch.stack(outputs, dim=1)
 
-    def _init_hidden(self, batch_size: int, device: torch.device) -> Tuple[Tensor, Tensor]:
-        hidden_size = self.lstm.hidden_size
-        h0 = torch.zeros(batch_size, hidden_size, device=device)
-        c0 = torch.zeros(batch_size, hidden_size, device=device)
-        return (h0, c0)
-
     @torch.jit.export
-    def decode(self, memory, max_length, memory_key_padding_mask=None):
+    def decode(self, memory, max_length, memory_key_padding_mask=None) -> Tensor:
         # type: (Tensor, int, Optional[Tensor]) -> Tensor
         '''
         memory: (B, T, E)
         '''
-        batch_size = memory.size(0)
-        hidden, cell = self._init_hidden(batch_size, memory.device)
-        inputs = torch.empty(batch_size, dtype=torch.long, device=memory.device).fill_(self.sos_idx)
-        outputs: List[Tensor] = [
-            F.one_hot(inputs, num_classes=self.in_embed.num_embeddings).float().to(inputs.device)
-        ]
 
-        end_flag = torch.zeros(batch_size, dtype=torch.bool)
+        sos = torch.full((memory.size(0),), fill_value=self.sos_idx, dtype=torch.long, device=memory.device)
+        prev_predict = self.in_embed(sos)
+        prev_attn = None
+        prev_state = None
+
+        outputs: List[Tensor] = []
+
+        end_flag = torch.zeros(memory.size(0), dtype=torch.bool, device=memory.device)
         for t in range(max_length):
-            context = self.attention(hidden.unsqueeze(1), memory, memory)[0]        # B, 1, E
-            context = context.squeeze(1)                                            # B, E
-            if t == 0:
-                inputs = torch.cat((context, self.in_embed(inputs)), dim=-1)        # B, E + V
-            else:
-                inputs = torch.cat((context, hidden), dim=-1)                       # B, E + V
-            hidden, cell = self.lstm(inputs, (hidden, cell))                        # B, H
-            output = self.out_embed(hidden)                                         # B, V
-            output = F.softmax(output, dim=-1)                                      # B, V
-            outputs.append(output)
+            out, context, state = self.recurrent_layer(memory, prev_predict, prev_attn,
+                                                       prev_state, memory_key_padding_mask)
+            output = self.out_embed(out)                                # B, V
+
+            prev_predict = self.in_embed(output.argmax(-1))             # B, E
+            prev_attn = context
+            prev_state = state
+
+            output = F.softmax(output, dim=-1)                          # B, V
+            outputs.append(output)                                      # [[B, V]]
 
             # set flag for early break
-            output = output.argmax(-1)               # [B]
-            current_end = output == self.eos_idx     # [B]
-            current_end = current_end.cpu()
+            output = output.argmax(-1)                                  # [B]
+            current_end = output == self.eos_idx                        # [B]
             end_flag |= current_end
             if end_flag.all():
                 break
 
+        predicts = torch.stack(outputs, dim=1)                          # B, T, V
+        one_hot_sos = F.one_hot(sos.unsqueeze(-1), predicts.size(-1)).to(predicts.device)
+        predicts = torch.cat((one_hot_sos, predicts), dim=1)
         return torch.stack(outputs, dim=1)
 
 

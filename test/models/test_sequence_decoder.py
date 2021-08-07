@@ -1,6 +1,9 @@
+import pytest
+from ocrstack.models.layers.attention_lstm import AttentionLSTMCell
 from ocrstack.config.config import Config
 import torch
-from ocrstack.models.layers.sequence_decoder import (AttentionLSTMDecoder,
+import torch.nn as nn
+from ocrstack.models.layers.sequence_decoder import (AttentionRecurrentDecoder,
                                                      TransformerDecoderAdapter)
 
 
@@ -61,25 +64,34 @@ def test_transformer_decoder_adapter_pe():
     assert output.shape == torch.Size([B, T, cfg.MODEL.TEXT_EMBED.VOCAB_SIZE])
 
 
-def test_attention_lstm_decoder_forward():
-    cfg = Config()
-    cfg.MODEL.DECODER.TYPE = 'attn_lstm'
-    cfg.MODEL.DECODER.HIDDEN_SIZE = 20
-    cfg.MODEL.DECODER.MAX_LENGTH = 5
-    cfg.MODEL.DECODER.TEACHER_FORCING = False
+@pytest.mark.parametrize('max_length', (1, 4))
+def test_attention_lstm_decoder_forward(max_length):
+    hidden_size = 20
+    embed_size = 20
+    vocab_size = 10
+    memory_size = 15
+    num_layers = 1
+    num_cells = 1
+    num_heads = 1
+    sos_idx = 0
+    eos_idx = 1
 
-    cfg.MODEL.TEXT_EMBED.EMBED_SIZE = 20
-    cfg.MODEL.TEXT_EMBED.VOCAB_SIZE = 10
-    cfg.MODEL.TEXT_EMBED.SOS_IDX = 0
-    cfg.MODEL.TEXT_EMBED.EOS_IDX = 1
-    cfg.MODEL.TEXT_EMBED.PAD_IDX = 2
-    cfg.MODEL.TEXT_EMBED.OUT_BIAS = False
-    cfg.MODEL.TEXT_EMBED.SHARE_WEIGHT_IN_OUT = True
+    model = AttentionRecurrentDecoder(
+        nn.Embedding(vocab_size, embed_size),
+        nn.Linear(embed_size, vocab_size),
+        AttentionLSTMCell(memory_size, embed_size, hidden_size, num_cells, num_heads),
+        sos_idx,
+        eos_idx,
+        num_layers,
+    )
 
-    model = AttentionLSTMDecoder(cfg)
+    B, T, S = 2, max_length, 8
+    memory = torch.rand(B, S, memory_size)
+    tgt = torch.randint(vocab_size, (B, T))
+    outputs = model.forward(memory, tgt)
+    assert outputs.shape == torch.Size([B, T, vocab_size])
 
-    B, T, S = 2, 4, 8
-    src = torch.rand(B, S, cfg.MODEL.DECODER.HIDDEN_SIZE)
-    tgt = torch.randint(cfg.MODEL.TEXT_EMBED.VOCAB_SIZE, (B, T))
-    outputs = model.forward(src, tgt)
-    assert outputs.shape == torch.Size([B, T, cfg.MODEL.TEXT_EMBED.VOCAB_SIZE])
+    predicts = model.decode(memory, T)
+    assert predicts.size(0) == B
+    assert predicts.size(1) <= T + 1
+    assert predicts.size(2) == vocab_size
