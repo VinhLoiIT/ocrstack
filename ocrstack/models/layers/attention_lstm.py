@@ -63,7 +63,7 @@ class AttentionLSTMCell(nn.Module):
             inputs = out_hidden_i
 
         context = self.attention(out_hidden_i.unsqueeze(1), memory, memory,
-                                 k_padding_mask=memory_key_padding_mask)[0]     # B, 1, E
+                                 key_padding_mask=memory_key_padding_mask)[0]     # B, 1, E
         context = context.squeeze(1)                                            # B, H
 
         out = self.out(context)                                                 # B, E
@@ -120,7 +120,7 @@ class AttentionGRUCell(nn.Module):
             inputs = out_hidden_i
 
         context = self.attention(out_hidden_i.unsqueeze(1), memory, memory,
-                                 k_padding_mask=memory_key_padding_mask)[0]     # B, 1, E
+                                 key_padding_mask=memory_key_padding_mask)[0]     # B, 1, E
         context = context.squeeze(1)                                            # B, H
 
         out = self.out(context)                                                 # B, E

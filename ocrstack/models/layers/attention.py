@@ -9,14 +9,14 @@ from torch import Tensor
 def attention(scores: Tensor,
               values: Tensor,
               q_padding_mask: Optional[Tensor] = None,
-              k_padding_mask: Optional[Tensor] = None,
+              key_padding_mask: Optional[Tensor] = None,
               attn_mask: Optional[Tensor] = None,
               out_weights: bool = False,
               ) -> Tuple[Tensor, Optional[Tensor]]:
 
-    if k_padding_mask is not None:
-        k_padding_mask = k_padding_mask.unsqueeze(-2)       # [B, 1, S]
-        scores = scores.masked_fill(k_padding_mask, float('-inf'))  # [B, T, S]
+    if key_padding_mask is not None:
+        key_padding_mask = key_padding_mask.unsqueeze(-2)       # [B, 1, S]
+        scores = scores.masked_fill(key_padding_mask, float('-inf'))  # [B, T, S]
 
     if attn_mask is not None:
         scores = scores.masked_fill(~attn_mask, float('-inf'))
@@ -134,7 +134,7 @@ class Attention(nn.Module):
                 keys,
                 values,
                 q_padding_mask: Optional[Tensor] = None,
-                k_padding_mask: Optional[Tensor] = None,
+                key_padding_mask: Optional[Tensor] = None,
                 attn_mask: Optional[Tensor] = None,
                 out_weights: bool = False,
                 ) -> Tuple[Tensor, Optional[Tensor]]:
@@ -144,6 +144,9 @@ class Attention(nn.Module):
         - queries: (B, T, embed_dim)
         - keys: (B, S, k_dim)
         - values: (B, S, v_dim)
+        - q_padding_mask: (B, T). BoolTensor where True value indicates padding locations, False otherwise.
+        - key_padding_Mask: (B, S). BoolTensor where True value indicates padding locations, False otherwise.
+        - attn_mask: (B, T, S). BoolTensor where True value indicates attention-able locations between queries and keys
         """
         queries = self.in_proj_q(queries)
         keys = self.in_proj_k(keys)
@@ -155,7 +158,7 @@ class Attention(nn.Module):
         if self.num_heads > 1:
             queries, keys, values = self.prepare_multihead(queries, keys, values)
             scores = self.compute_scores(queries, keys)     # (B, T, S)
-            context, weights = attention(scores, values, q_padding_mask, k_padding_mask, attn_mask, out_weights)
+            context, weights = attention(scores, values, q_padding_mask, key_padding_mask, attn_mask, out_weights)
             # context: (B * N, T, H)
             # weights: (B * N, T, H)
             context = context.reshape(batch_size, self.num_heads, tgt_length, self.head_dim)
@@ -164,7 +167,7 @@ class Attention(nn.Module):
             context = self.out_proj(context)                                            # (B, T, E)
         else:
             scores = self.compute_scores(queries, keys)     # (B, T, S)
-            context, weights = attention(scores, values, q_padding_mask, k_padding_mask, attn_mask, out_weights)
+            context, weights = attention(scores, values, q_padding_mask, key_padding_mask, attn_mask, out_weights)
             context = self.out_proj(context)
 
         return context, weights

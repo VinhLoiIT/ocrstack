@@ -12,12 +12,12 @@ def test_attention():
     q_padding_mask = torch.tensor([[0, 0, 1], [0, 1, 1]], dtype=torch.bool)
     assert q_padding_mask.shape == torch.Size([2, 3])
 
-    k_padding_mask = torch.tensor([[0, 0, 0, 1], [0, 0, 1, 1]], dtype=torch.bool)
-    assert k_padding_mask.shape == torch.Size([2, 4])
+    key_padding_mask = torch.tensor([[0, 0, 0, 1], [0, 0, 1, 1]], dtype=torch.bool)
+    assert key_padding_mask.shape == torch.Size([2, 4])
 
-    padding_mask = torch.bitwise_or(q_padding_mask.unsqueeze(-1), k_padding_mask.unsqueeze(-2))
+    padding_mask = torch.bitwise_or(q_padding_mask.unsqueeze(-1), key_padding_mask.unsqueeze(-2))
 
-    values, weights = attention(scores, values, q_padding_mask, k_padding_mask, out_weights=True)
+    values, weights = attention(scores, values, q_padding_mask, key_padding_mask, out_weights=True)
     assert (weights.masked_select(padding_mask) == 0).all()
 
 
