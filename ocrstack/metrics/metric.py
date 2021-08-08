@@ -22,5 +22,5 @@ class AverageMeter(object):
         self._sum += sum
         self._num_samples += n_samples
 
-    def update(self, sum, n_samples):
-        self.add(sum, n_samples)
+    def update(self, *args, **kwargs):
+        raise NotImplementedError()
