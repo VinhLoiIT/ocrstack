@@ -1,8 +1,8 @@
-from ocrstack.data.collate import Batch
-import editdistance as ed
-from .metric import AverageMeter
 from typing import List, Tuple
 
+import editdistance as ed
+
+from .metric import AverageMeter
 
 __all__ = [
     'CERMeter',
@@ -55,8 +55,8 @@ class CERMeter(AverageMeter):
         super(CERMeter, self).__init__()
         self.norm = norm
 
-    def update(self, predicts, batch):
-        # type: (Tuple[List[str], List[float]], Batch) -> None
+    def update(self, predicts, targets):
+        # type: (List[str], List[str]) -> None
         '''
         Calculate CER distance between two lists of strings
         Params:
@@ -64,13 +64,11 @@ class CERMeter(AverageMeter):
         - predicts: List of predicted characters
         - targets: List of target characters
         '''
-        predicted_strings = predicts[0]
-        target_strings = batch.text_str
         if self.norm:
-            cers = compute_norm_cer(predicted_strings, target_strings)
+            cers = compute_norm_cer(predicts, targets)
             self.add(sum(cers), len(cers))
         else:
-            dist, num_refs = compute_global_cer(predicted_strings, target_strings)
+            dist, num_refs = compute_global_cer(predicts, targets)
             self.add(sum(dist), sum(num_refs))
 
 
@@ -81,8 +79,8 @@ class WERMeter(AverageMeter):
         self.spec_tokens = spec_tokens
         self.norm = norm
 
-    def update(self, predicts, batch):
-        # type: (Tuple[List[str], List[float]], Batch) -> None
+    def update(self, predicts, targets):
+        # type: (List[str], List[str]) -> None
         '''
         Calculate WER distance between two lists of strings
         Params:
@@ -94,13 +92,11 @@ class WERMeter(AverageMeter):
         - distances: List of distances
         - n_references: List of the number of characters of targets
         '''
-        predicted_strings = predicts[0]
-        target_strings = batch.text_str
         if self.norm:
-            wers = compute_norm_wer(predicted_strings, target_strings)
+            wers = compute_norm_wer(predicts, targets)
             self.add(sum(wers), len(wers))
         else:
-            dist, num_refs = compute_global_wer(predicted_strings, target_strings)
+            dist, num_refs = compute_global_wer(predicts, targets)
             self.add(sum(dist), sum(num_refs))
 
 
@@ -108,8 +104,8 @@ class ACCMeter(AverageMeter):
     def __init__(self):
         super(ACCMeter, self).__init__()
 
-    def update(self, predicts, batch):
-        # type: (Tuple[List[str], List[float]], Batch) -> None
+    def update(self, predicts, targets):
+        # type: (List[str], List[str]) -> None
         '''
         Calculate Accuracy between two lists of strings
         Params:
@@ -117,7 +113,5 @@ class ACCMeter(AverageMeter):
         - predicts: List of predicted characters
         - targets: List of target characters
         '''
-        predicted_strings = predicts[0]
-        target_strings = batch.text_str
-        accs = compute_acc(predicted_strings, target_strings)
+        accs = compute_acc(predicts, targets)
         self.add(sum(accs), len(accs))
