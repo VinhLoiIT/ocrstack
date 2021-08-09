@@ -204,6 +204,9 @@ def train_s2s(cfg: S2STrainConfig,
         if (epoch + 1) % cfg.validate_steps == 0:
             model.eval()
             val_loss, val_metrics = validate_s2s(cfg, model, translator, val_loader)
+            logger.info(f'val_loss = {val_loss:.4f}')
+            for k, v in val_metrics.items():
+                logger.info(f'{k} = {v:.04f}')
             model.train()
 
             if val_loss < best_loss:
