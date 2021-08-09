@@ -16,6 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 __all__ = [
     'S2STrainConfig',
     'validate_s2s',
+    'visualize_s2s',
     'train_s2s',
     'train_s2s_epoch',
     'setup_logging',
@@ -31,7 +32,7 @@ class S2STrainConfig:
     num_workers: int = 2
     device: str = 'cpu'
     max_length: int = 1
-    print_prediction: bool = False
+    num_iter_visualize: Union[int, float] = 0.05
     log_interval: Union[int, float] = 0.1
     validate_steps: int = 1
     save_by: Optional[str] = 'val_loss'
@@ -57,6 +58,34 @@ def _validate_s2s_iteration(cfg: S2STrainConfig,
     predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
     predict_strs = translator.translate(predicts)[0]
     return loss.item(), predict_strs
+
+
+@torch.no_grad()
+def visualize_s2s(cfg: S2STrainConfig,
+                  epoch: int,
+                  model: IS2SModel,
+                  translator: ITranslator,
+                  val_loader: DataLoader):
+    logger = logging.getLogger('Visualizing')
+
+    if model.training:
+        model.eval()
+
+    num_iter = len(val_loader) if cfg.num_iter_visualize < 0 else cfg.num_iter_visualize
+    if isinstance(num_iter, float):
+        assert 0 <= num_iter <= 1
+        num_iter = int(num_iter * len(val_loader))
+
+    batch: Batch
+    for i, batch in val_loader:
+        if i == num_iter:
+            break
+        predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
+        predict_strs = translator.translate(predicts)[0]
+
+        logger.info('Visualize [{:3d}][{:6.4f}]'.format(epoch, (i + 1) * 100 / num_iter))
+        for predict_str in predict_strs:
+            logger.info(predict_str)
 
 
 @torch.no_grad()
@@ -88,10 +117,6 @@ def validate_s2s(cfg: S2STrainConfig,
         total_loss.add(loss, len(batch))
         for metric in metrics.values():
             metric.update(predict_strs, batch.text_str)
-
-        if cfg.print_prediction:
-            for predict_str in predict_strs:
-                logger.info(predict_str)
 
     val_loss = total_loss.compute()
     out_metrics = {k: v.compute() for k, v in metrics.items()}
@@ -227,6 +252,7 @@ def train_s2s(cfg: S2STrainConfig,
         if (epoch + 1) % cfg.validate_steps == 0:
             model.eval()
             val_loss, val_metrics = validate_s2s(cfg, epoch + 1, model, translator, val_loader)
+            visualize_s2s(cfg, epoch, model, translator, val_loader)
             model.train()
 
             if val_loss < best_loss:
