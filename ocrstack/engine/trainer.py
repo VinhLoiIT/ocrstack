@@ -86,8 +86,8 @@ def visualize_s2s(cfg: S2STrainConfig,
         predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
         predict_strs = translator.translate(predicts)[0]
 
-        for predict_str in predict_strs:
-            logger.info(predict_str)
+        for predict_str, tgt in zip(predict_strs, batch.text_str):
+            logger.info(f'Predict: {predict_str} ; Target: {tgt}')
 
 
 @torch.no_grad()
