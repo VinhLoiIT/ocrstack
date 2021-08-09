@@ -123,9 +123,9 @@ def validate_s2s(cfg: S2STrainConfig,
     out_metrics = {k: v.compute() for k, v in metrics.items()}
 
     if tb_writer is not None:
-        tb_writer.add_scalar('Val/Loss', val_loss, epoch)
+        tb_writer.add_scalar('Validation/Loss', val_loss, epoch)
         for k, v in out_metrics.items():
-            tb_writer.add_scalar(f'Val/{k}', v, epoch)
+            tb_writer.add_scalar(f'Validation/{k}', v, epoch)
 
     logger.info(f'Epoch [{epoch:3d}] val_loss = {val_loss:.4f}')
     for k, v in out_metrics.items():
@@ -169,7 +169,7 @@ def train_s2s_epoch(cfg: S2STrainConfig,
         with torch.no_grad():
 
             if tb_writer is not None:
-                tb_writer.add_scalar('Loss', loss, num_iter * epoch + i)
+                tb_writer.add_scalar('Train/Loss', loss, num_iter * epoch + i)
 
             running_loss.add(loss, len(batch))
             total_loss.add(loss, len(batch))
