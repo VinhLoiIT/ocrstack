@@ -11,6 +11,7 @@ from ocrstack.metrics.ocr import ACCMeter, CERMeter, WERMeter
 from ocrstack.models.base import IS2SModel
 from ocrstack.models.layers.translator import ITranslator
 from torch.utils.data.dataloader import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 __all__ = [
     'S2STrainConfig',
@@ -60,9 +61,11 @@ def _validate_s2s_iteration(cfg: S2STrainConfig,
 
 @torch.no_grad()
 def validate_s2s(cfg: S2STrainConfig,
+                 epoch: int,
                  model: IS2SModel,
                  translator: ITranslator,
-                 val_loader: DataLoader) -> Tuple[float, Dict[str, float]]:
+                 val_loader: DataLoader,
+                 tb_writer: Optional[SummaryWriter] = None) -> Tuple[float, Dict[str, float]]:
     logger = logging.getLogger('Validation')
 
     total_loss = AverageMeter()
@@ -90,19 +93,31 @@ def validate_s2s(cfg: S2STrainConfig,
             for predict_str in predict_strs:
                 logger.info(predict_str)
 
+    val_loss = total_loss.compute()
     out_metrics = {k: v.compute() for k, v in metrics.items()}
+
+    if tb_writer is not None:
+        tb_writer.add_scalar('Val/Loss', val_loss, epoch)
+        for k, v in out_metrics.items():
+            tb_writer.add_scalar(f'Val/{k}', v, epoch)
+
+    logger.info(f'Epoch [{epoch:3d}] val_loss = {val_loss:.4f}')
+    for k, v in out_metrics.items():
+        logger.info(f'{k} = {v:.04f}')
+
     for k, v in out_metrics.items():
         if k != 'ACC':
             out_metrics[k] = -v
 
-    return total_loss.compute(), out_metrics
+    return val_loss, out_metrics
 
 
 def train_s2s_epoch(cfg: S2STrainConfig,
                     epoch: int,
                     model: IS2SModel,
                     optimizer: torch.optim.Optimizer,
-                    train_loader: DataLoader):
+                    train_loader: DataLoader,
+                    tb_writer: Optional[SummaryWriter] = None):
     r"""
     Training a model for one epoch
     """
@@ -126,6 +141,10 @@ def train_s2s_epoch(cfg: S2STrainConfig,
         loss = _train_s2s_iteration(model, optimizer, batch)
 
         with torch.no_grad():
+
+            if tb_writer is not None:
+                tb_writer.add_scalar('Loss', loss, num_iter * epoch + i)
+
             running_loss.add(loss, len(batch))
             total_loss.add(loss, len(batch))
 
@@ -187,6 +206,10 @@ def train_s2s(cfg: S2STrainConfig,
         return
 
     session_dir = Path(create_session_dir(cfg.log_dir))
+
+    tensorboard_dir = session_dir.joinpath('tb_logs')
+    tb_writer = SummaryWriter(tensorboard_dir)
+
     ckpt_dir = session_dir.joinpath('ckpt')
     ckpt_dir.mkdir(parents=True)
     ckpt_history: queue.Queue = queue.Queue(cfg.save_top_k)
@@ -194,7 +217,7 @@ def train_s2s(cfg: S2STrainConfig,
     logger.info('Start training')
 
     for epoch in range(cfg.n_epochs):
-        train_loss, train_running_loss = train_s2s_epoch(cfg, epoch, model, optimizer, train_loader)
+        train_loss, train_running_loss = train_s2s_epoch(cfg, epoch, model, optimizer, train_loader, tb_writer)
 
         if lr_scheduler is not None:
             lr_scheduler.step()
@@ -203,10 +226,7 @@ def train_s2s(cfg: S2STrainConfig,
 
         if (epoch + 1) % cfg.validate_steps == 0:
             model.eval()
-            val_loss, val_metrics = validate_s2s(cfg, model, translator, val_loader)
-            logger.info(f'val_loss = {val_loss:.4f}')
-            for k, v in val_metrics.items():
-                logger.info(f'{k} = {v:.04f}')
+            val_loss, val_metrics = validate_s2s(cfg, epoch + 1, model, translator, val_loader)
             model.train()
 
             if val_loss < best_loss:
@@ -231,7 +251,7 @@ def train_s2s(cfg: S2STrainConfig,
 
             best_metric = max(metric_val, best_metric)
             ckpt_path = ckpt_dir.joinpath(f'{cfg.save_by}={metric_val}.pth')
-            torch.save(state(epoch), ckpt_path)
+            torch.save(state(epoch + 1), ckpt_path)
 
             try:
                 ckpt_history.put_nowait(ckpt_path)
@@ -239,6 +259,8 @@ def train_s2s(cfg: S2STrainConfig,
                 oldest_checkpoint = ckpt_history.get()
                 oldest_checkpoint.unlink()
                 ckpt_history.put(ckpt_path)
+
+    tb_writer.close()
 
 
 def setup_logging():
