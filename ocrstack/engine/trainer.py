@@ -115,7 +115,7 @@ def validate_s2s(cfg: S2STrainConfig,
         batch = batch.to(cfg.device)
         loss, predict_strs = _validate_s2s_iteration(cfg, model, translator, batch)
 
-        total_loss.add(loss, len(batch))
+        total_loss.add(loss * len(batch), len(batch))
         for metric in metrics.values():
             metric.update(predict_strs, batch.text_str)
 
@@ -171,8 +171,8 @@ def train_s2s_epoch(cfg: S2STrainConfig,
             if tb_writer is not None:
                 tb_writer.add_scalar('Train/Loss', loss, num_iter * epoch + i)
 
-            running_loss.add(loss, len(batch))
-            total_loss.add(loss, len(batch))
+            running_loss.add(loss * len(batch), len(batch))
+            total_loss.add(loss * len(batch), len(batch))
 
             if (i + 1) % log_interval == 0:
                 logger.info('Epoch [{:3d}/{:3d}] - [{:6.2f}%] Running Loss = {:.4f}. Total loss = {:.4f}.'.format(
