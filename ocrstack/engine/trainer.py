@@ -1,229 +1,245 @@
 import logging
+import queue
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
-import torch.optim as optim
-from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
-from ocrstack.engine.logger import ConsoleLogger, ILogger, ComposeLogger, TensorboardLogger
-from ocrstack.engine.utils import set_seed
 from ocrstack.metrics.metric import AverageMeter
-from ocrstack.models.base import ITrainableModel
-from torch.nn.utils.clip_grad import clip_grad_value_
+from ocrstack.metrics.ocr import ACCMeter, CERMeter, WERMeter
+from ocrstack.models.base import IS2SModel
+from ocrstack.models.layers.translator import ITranslator
 from torch.utils.data.dataloader import DataLoader
 
-from .checkpoint import ICkptSaver
-from .evaluator import IEvaluator
+__all__ = [
+    'S2STrainConfig',
+    'validate_s2s',
+    'train_s2s',
+    'train_s2s_epoch',
+    'setup_logging',
+    'create_session_dir',
+]
 
 
-class Trainer(object):
+@dataclass()
+class S2STrainConfig:
+    n_epochs: int = 1000
+    learning_rate: int = 1e-4
+    batch_size: int = 2
+    num_workers: int = 2
+    device: str = 'cpu'
+    max_length: int = 1
+    print_prediction: bool = False
+    log_interval: Union[int, float] = 0.1
+    validate_steps: int = 1
+    save_by: Optional[str] = 'val_loss'
+    save_top_k: int = 3
+    log_dir: str = 'runs'
+    seed: int = 0
 
-    '''
-    Base class for OCR Trainer
-    '''
 
-    def __init__(self,
-                 model: ITrainableModel,
-                 optimizer: optim.Optimizer,
-                 cfg: Config,
-                 lr_scheduler=None,
-                 logger: Optional[ILogger] = None,
-                 ):
-        self.model = model
-        self.optimizer = optimizer
-        self.lr_scheduler = lr_scheduler
-        self.cfg = cfg
-        self.grad_scaler = torch.cuda.amp.GradScaler(enabled=cfg.TRAINER.USE_AMP)
-        self.train_metrics = {
-            'Loss': AverageMeter(),
-            'Time': AverageMeter(),
-        }
+def _train_s2s_iteration(model: IS2SModel, optimizer: torch.optim.Optimizer, batch: Batch) -> float:
+    optimizer.zero_grad()
+    loss = model.forward_batch(batch)
+    loss.backward()
+    optimizer.step()
+    return loss.item()
 
-        logging.basicConfig(format='[%(levelname)s] %(name)s: %(message)s', level=logging.INFO)
 
-        if logger is None:
-            self.logger = ComposeLogger([
-                ConsoleLogger(cfg.TRAINER.LOG_INTERVAL, name='Trainer'),
-                TensorboardLogger(),
-            ])
-        else:
-            self.logger = logger
+def _validate_s2s_iteration(cfg: S2STrainConfig,
+                            model: IS2SModel,
+                            translator: ITranslator,
+                            batch: Batch
+                            ) -> Tuple[float, List[str]]:
+    loss = model.forward_batch(batch)
+    predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
+    predict_strs = translator.translate(predicts)[0]
+    return loss.item(), predict_strs
 
-    def train_step(self, batch: Batch):
-        batch = batch.to(self.cfg.TRAINER.DEVICE)
-        loss = self.model.forward_batch(batch)
-        self.optimizer.zero_grad()
-        self.grad_scaler.scale(loss).backward()
-        self.grad_scaler.unscale_(self.optimizer)
-        if self.cfg.TRAINER.CLIP_GRAD_VALUE is not None:
-            clip_grad_value_(self.model.parameters(), self.cfg.TRAINER.CLIP_GRAD_VALUE)
-        self.grad_scaler.step(self.optimizer)
-        self.grad_scaler.update()
-        return loss.item()
 
-    def train(self,
-              train_loader: DataLoader,
-              evaluators: Optional[Iterable[IEvaluator]] = [],
-              ckpt_saver: Optional[ICkptSaver] = None):
+@torch.no_grad()
+def validate_s2s(cfg: S2STrainConfig,
+                 model: IS2SModel,
+                 translator: ITranslator,
+                 val_loader: DataLoader) -> Tuple[float, Dict[str, float]]:
+    logger = logging.getLogger('Validation')
 
-        session_dir = create_session_dir(self.cfg.TRAINER.LOG_DIR)
+    total_loss = AverageMeter()
+    metrics = {
+        'CER': CERMeter(),
+        'NormCER': CERMeter(norm=True),
+        'WER': WERMeter(),
+        'NormWER': WERMeter(norm=True),
+        'ACC': ACCMeter(),
+    }  # type: Dict[str, AverageMeter]
 
-        self.evaluators = evaluators if isinstance(evaluators, Iterable) else (evaluators,)
+    if model.training:
+        model.eval()
 
-        self.model.to(self.cfg.TRAINER.DEVICE)
-        self.logger.open(session_dir)
-        self.logger.log_model(self.model, self.cfg.TRAINER.DEVICE)
+    batch: Batch
+    for batch in val_loader:
+        batch = batch.to(cfg.device)
+        loss, predict_strs = _validate_s2s_iteration(cfg, model, translator, batch)
 
-        self._save_config(session_dir)
-        self._warmup(train_loader)
+        total_loss.add(loss, len(batch))
+        for metric in metrics.values():
+            metric.update(predict_strs, batch.text_str)
 
-        self.model.train()
+        if cfg.print_prediction:
+            for predict_str in predict_strs:
+                logger.info(predict_str)
 
-        set_seed(self.cfg.TRAINER.SEED)
-        self.train_loop(session_dir, train_loader, evaluators, ckpt_saver)
+    out_metrics = {k: v.compute() for k, v in metrics.items()}
+    for k, v in out_metrics.items():
+        if k != 'ACC':
+            out_metrics[k] = -v
 
-        self.logger.close()
+    return total_loss.compute(), out_metrics
 
-    def evaluate(self,
-                 evaluators: Iterable[IEvaluator],
-                 session_dir: str,
-                 ckpt_saver: Optional[ICkptSaver] = None):
 
-        self.model.eval()
-        metrics = {}
+def train_s2s_epoch(cfg: S2STrainConfig,
+                    epoch: int,
+                    model: IS2SModel,
+                    optimizer: torch.optim.Optimizer,
+                    train_loader: DataLoader):
+    r"""
+    Training a model for one epoch
+    """
+    logger = logging.getLogger('Trainer')
+
+    total_loss = AverageMeter()
+    running_loss = AverageMeter()
+
+    num_iter = len(train_loader)
+    log_interval = cfg.log_interval
+    if isinstance(log_interval, float):
+        assert 0 <= log_interval <= 1
+        log_interval = int(log_interval * num_iter)
+
+    if not model.training:
+        model.train()
+
+    batch: Batch
+    for i, batch in enumerate(train_loader):
+        batch = batch.to(cfg.device)
+        loss = _train_s2s_iteration(model, optimizer, batch)
+
         with torch.no_grad():
-            for evaluator in evaluators:
-                metrics_ = evaluator.eval(self.model, self.cfg.TRAINER.DEVICE)
-                if metrics_ is not None:
-                    metrics[evaluator.get_name()] = metrics_
+            running_loss.add(loss, len(batch))
+            total_loss.add(loss, len(batch))
 
-            self.logger.log_metrics(metrics, step=self.num_iteration)
-            self.model.train()
+            if (i + 1) % log_interval == 0:
+                logger.info('Epoch [{:3d}/{:3d}] - [{:6.2f}%] Running Loss = {:.4f}. Total loss = {:.4f}.'.format(
+                    epoch + 1,
+                    cfg.n_epochs,
+                    (i + 1) / num_iter,
+                    running_loss.compute(),
+                    total_loss.compute()
+                ))
+                running_loss.reset()
 
-            if ckpt_saver.is_better(metrics):
-                self.logger.log_info('Found better checkpoint. Improved from {:.4f} to {:.4f}'.format(
-                    ckpt_saver.get_last_metric_value(),
-                    ckpt_saver.get_metric_value(metrics))
-                )
-                ckpt_saver.save(session_dir, self.state_dict(), metrics)
-
-    def train_loop(self,
-                   session_dir: str,
-                   train_loader: DataLoader,
-                   evaluators: Optional[Iterable[IEvaluator]] = [],
-                   ckpt_saver: Optional[ICkptSaver] = None):
-        raise NotImplementedError()
-
-    def state_dict(self):
-        state = {
-            'model': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'lr_scheduler': None if self.lr_scheduler is None else self.lr_scheduler.state_dict(),
-            'epoch': self.epoch,
-            'num_iteration': self.num_iteration,
-        }
-        return state
-
-    def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict['model'])
-        self.optimizer.load_state_dict(state_dict['optimizer'])
-        if state_dict['lr_scheduler'] is not None:
-            self.lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
-        self.epoch = state_dict['epoch']
-        self.num_iteration = state_dict['num_iteration']
-
-    def _save_config(self, session_dir: str):
-        config_path = Path(session_dir, 'config.yaml')
-        self.logger.log_info(f'Save config to {config_path}')
-        self.cfg.to_yaml(config_path)
-
-    def _warmup(self, train_loader):
-        self.model.train()
-        if self.cfg.TRAINER.NUM_ITER_WARMUP > 0:
-            self.logger.log_info(f'Warmup trainer for {self.cfg.TRAINER.NUM_ITER_WARMUP} iteration(s)')
-            for i, batch in enumerate(train_loader):
-                self.train_step(batch)
-                self.logger.log_info(f'Warmed {i + 1} iteration(s)')
-                if i + 1 == self.cfg.TRAINER.NUM_ITER_WARMUP:
-                    break
-            self.logger.log_info('Warmup trainer finished')
+    return total_loss.compute(), running_loss.compute()
 
 
-class IterationTrainer(Trainer):
+def train_s2s(cfg: S2STrainConfig,
+              model: IS2SModel,
+              optimizer: torch.optim.Optimizer,
+              train_loader: DataLoader,
+              val_loader: DataLoader,
+              translator: ITranslator,
+              lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+              is_debug: bool = False,
+              ):
 
-    def __init__(self,
-                 model: ITrainableModel,
-                 optimizer: optim.Optimizer,
-                 cfg: Config,
-                 lr_scheduler,
-                 logger: Optional[ILogger] = None):
-        super().__init__(model, optimizer, cfg, lr_scheduler=lr_scheduler, logger=logger)
+    def state(epoch):
+        state_dict = {}
+        state_dict['model'] = model.state_dict()
+        state_dict['optimizer'] = optimizer.state_dict()
+        if lr_scheduler is not None:
+            state_dict['lr_scheduler'] = lr_scheduler.state_dict()
+        state_dict['epoch'] = epoch
 
-    def train_loop(self,
-                   session_dir: str,
-                   train_loader: DataLoader,
-                   evaluators: Optional[Iterable[IEvaluator]],
-                   ckpt_saver: Optional[ICkptSaver]):
-        self.num_iteration = 0
-        self.epoch = 0
-        self.logger.log_info(f'Start training for {self.cfg.TRAINER.ITER_TRAIN} iteration(s)')
-        while self.num_iteration < self.cfg.TRAINER.ITER_TRAIN:
-            loss_meter = self.train_metrics['Loss']
-            for i, batch in enumerate(train_loader):
-                with torch.cuda.amp.autocast(enabled=self.cfg.TRAINER.USE_AMP):
-                    loss = self.train_step(batch)
-                loss_meter.update(loss, len(batch))
-                self.num_iteration += 1
+    setup_logging()
+    logger = logging.getLogger('Trainer')
 
-                self.logger.log_scalar('Train/Loss', loss, self.num_iteration)
-                if self.num_iteration % self.cfg.TRAINER.LOG_INTERVAL == 0:
-                    loss_meter.reset()
+    best_loss = float('inf')
+    best_metric = 0.0
+    model.train()
+    model.to(cfg.device)
 
-                if evaluators is not None and self.num_iteration % self.cfg.TRAINER.ITER_EVAL == 0:
-                    self.evaluate(evaluators, session_dir, ckpt_saver)
+    if is_debug:
+        logger.info('Start training in debug mode')
+        logger.info('Run training for 1 iteration')
+        batch = next(iter(train_loader))
+        batch = batch.to(cfg.device)
+        _train_s2s_iteration(model, optimizer, batch)
 
-                if self.num_iteration >= self.cfg.TRAINER.ITER_TRAIN:
-                    break
+        if lr_scheduler is not None:
+            lr_scheduler.step()
 
-            self.epoch += 1
+        model.eval()
+        logger.info('Run validation for 1 iteration')
+        batch = next(iter(val_loader))
+        batch = batch.to(cfg.device)
+        _validate_s2s_iteration(cfg, model, translator, batch)
+        logger.info('Training DONE')
+        return
+
+    session_dir = Path(create_session_dir(cfg.log_dir))
+    ckpt_dir = session_dir.joinpath('ckpt')
+    ckpt_dir.mkdir(parents=True)
+    ckpt_history: queue.Queue = queue.Queue(cfg.save_top_k)
+
+    logger.info('Start training')
+
+    for epoch in range(cfg.n_epochs):
+        train_loss, train_running_loss = train_s2s_epoch(cfg, epoch, model, optimizer, train_loader)
+
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+
+        torch.save(state(epoch), ckpt_dir.joinpath('latest.pth'))
+
+        if (epoch + 1) % cfg.validate_steps == 0:
+            model.eval()
+            val_loss, val_metrics = validate_s2s(cfg, model, translator, val_loader)
+            model.train()
+
+            if val_loss < best_loss:
+                logger.info('Found better validation loss. Improved from {:.4f} to {:.4f}'.format(
+                    best_loss, val_loss
+                ))
+                best_loss = val_loss
+
+            if cfg.save_by is None:
+                continue
+
+            if cfg.save_by in val_metrics.keys():
+                metric_val = val_metrics[cfg.save_by]
+            elif cfg.save_by == 'val_loss':
+                metric_val = val_loss
+            elif cfg.save_by == 'train_loss':
+                metric_val = train_loss
+            elif cfg.save_by == 'train_running_loss':
+                metric_val = train_running_loss
+            else:
+                raise ValueError(f'Unknow save_by={cfg.save_by}')
+
+            best_metric = max(metric_val, best_metric)
+            ckpt_path = ckpt_dir.joinpath(f'{cfg.save_by}={metric_val}.pth')
+            torch.save(state(epoch), ckpt_path)
+
+            try:
+                ckpt_history.put_nowait(ckpt_path)
+            except queue.Full:
+                oldest_checkpoint = ckpt_history.get()
+                oldest_checkpoint.unlink()
+                ckpt_history.put(ckpt_path)
 
 
-class EpochTrainer(Trainer):
-
-    def __init__(self,
-                 model: ITrainableModel,
-                 optimizer: optim.Optimizer,
-                 cfg: Config,
-                 lr_scheduler,
-                 logger: Optional[ILogger] = None):
-        super().__init__(model, optimizer, cfg, lr_scheduler=lr_scheduler, logger=logger)
-
-    def train_loop(self,
-                   session_dir: str,
-                   train_loader: DataLoader,
-                   evaluators: Optional[Iterable[IEvaluator]] = None,
-                   ckpt_saver: Optional[ICkptSaver] = None):
-        self.num_iteration = 0
-
-        self.logger.log_info(f'Start training for {self.cfg.TRAINER.NUM_EPOCHS} epoch(s)')
-        for epoch in range(self.cfg.TRAINER.NUM_EPOCHS):
-            self.epoch = epoch
-
-            self.model.train()
-            loss_meter = self.train_metrics['Loss']
-            for i, batch in enumerate(train_loader):
-                with torch.cuda.amp.autocast(enabled=self.cfg.TRAINER.USE_AMP):
-                    loss = self.train_step(batch)
-                loss_meter.update(loss, len(batch))
-                self.num_iteration += 1
-
-                self.logger.log_scalar('Train/Loss', loss, self.num_iteration)
-                if self.num_iteration % self.cfg.TRAINER.LOG_INTERVAL == 0:
-                    loss_meter.reset()
-
-            if evaluators is not None and self.num_iteration % self.cfg.TRAINER.STEP_EVAL == 0:
-                self.evaluate(evaluators, session_dir, ckpt_saver)
+def setup_logging():
+    logging.basicConfig(format='[%(levelname)s] %(name)s: %(message)s', level=logging.INFO)
 
 
 def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:
