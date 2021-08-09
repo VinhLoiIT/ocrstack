@@ -80,6 +80,7 @@ def visualize_s2s(cfg: S2STrainConfig,
     for i, batch in enumerate(val_loader):
         if i == num_iter:
             break
+        batch = batch.to(cfg.device)
         predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
         predict_strs = translator.translate(predicts)[0]
 
