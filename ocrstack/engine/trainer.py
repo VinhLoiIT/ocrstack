@@ -76,6 +76,8 @@ def visualize_s2s(cfg: S2STrainConfig,
         assert 0 <= num_iter <= 1
         num_iter = int(num_iter * len(val_loader))
 
+    logger.info('Visualize Epoch [{:3d}]'.format(epoch))
+
     batch: Batch
     for i, batch in enumerate(val_loader):
         if i == num_iter:
@@ -84,7 +86,6 @@ def visualize_s2s(cfg: S2STrainConfig,
         predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
         predict_strs = translator.translate(predicts)[0]
 
-        logger.info('Visualize [{:3d}][{:6.4f}]'.format(epoch, (i + 1) * 100 / num_iter))
         for predict_str in predict_strs:
             logger.info(predict_str)
 
