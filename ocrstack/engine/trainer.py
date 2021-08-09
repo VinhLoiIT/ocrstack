@@ -77,7 +77,7 @@ def visualize_s2s(cfg: S2STrainConfig,
         num_iter = int(num_iter * len(val_loader))
 
     batch: Batch
-    for i, batch in val_loader:
+    for i, batch in enumerate(val_loader):
         if i == num_iter:
             break
         predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
