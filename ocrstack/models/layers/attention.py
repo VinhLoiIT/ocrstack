@@ -129,6 +129,16 @@ class Attention(nn.Module):
 
         return queries, keys, values
 
+    def prepare_multihead_padding(self, padding_mask: Tensor) -> Tensor:
+        '''
+        in: (B, *)
+        out: (B * N, *)
+        '''
+        head_padding_mask = padding_mask.unsqueeze(1)  # (B, 1, *)
+        shape = list(head_padding_mask.shape)
+        shape[1] = self.num_heads
+        return head_padding_mask.expand(*shape).reshape(-1, *padding_mask.shape[1:])
+
     def forward(self,
                 queries,
                 keys,
@@ -157,6 +167,10 @@ class Attention(nn.Module):
 
         if self.num_heads > 1:
             queries, keys, values = self.prepare_multihead(queries, keys, values)
+            if q_padding_mask is not None:
+                q_padding_mask = self.prepare_multihead_padding(q_padding_mask)
+            if key_padding_mask is not None:
+                key_padding_mask = self.prepare_multihead_padding(key_padding_mask)
             scores = self.compute_scores(queries, keys)     # (B, T, S)
             context, weights = attention(scores, values, q_padding_mask, key_padding_mask, attn_mask, out_weights)
             # context: (B * N, T, H)
