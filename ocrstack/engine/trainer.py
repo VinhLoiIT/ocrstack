@@ -133,7 +133,7 @@ def train_s2s_epoch(cfg: S2STrainConfig,
                 logger.info('Epoch [{:3d}/{:3d}] - [{:6.2f}%] Running Loss = {:.4f}. Total loss = {:.4f}.'.format(
                     epoch + 1,
                     cfg.n_epochs,
-                    (i + 1) / num_iter,
+                    (i + 1) * 100 / num_iter,
                     running_loss.compute(),
                     total_loss.compute()
                 ))
