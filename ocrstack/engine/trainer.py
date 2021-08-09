@@ -205,6 +205,7 @@ def train_s2s(cfg: S2STrainConfig,
         if lr_scheduler is not None:
             state_dict['lr_scheduler'] = lr_scheduler.state_dict()
         state_dict['epoch'] = epoch
+        return state_dict
 
     setup_logging()
     logger = logging.getLogger('Trainer')
