@@ -19,8 +19,8 @@ def test_transformer_decoder(max_length):
     decoder = TransformerDecoder(
         nn.Embedding(vocab_size, embed_size, pad_idx),
         nn.Linear(embed_size, vocab_size),
-        TransformerDecoderLayer(DotProductAttention(scaled=True, embed_dim=embed_size),
-                                DotProductAttention(scaled=True, embed_dim=embed_size),
+        TransformerDecoderLayer(DotProductAttention(embed_dim=embed_size),
+                                DotProductAttention(embed_dim=embed_size),
                                 embed_size),
         sos_idx, eos_idx, pad_idx
     )

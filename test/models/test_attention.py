@@ -1,7 +1,7 @@
 import pytest
 import torch
 from ocrstack.models.layers.attention import (AdditiveAttention, Attention,
-                                              DotProductAttention, attention)
+                                              DotProductAttention, ScaledDotProductAttention, attention)
 
 
 def test_attention():
@@ -39,7 +39,11 @@ def test_dot_prod_attention(batch_size, src_length, tgt_length, k_dim, v_dim, nu
     k = torch.rand(batch_size, src_length, k_dim)
     v = torch.rand(batch_size, src_length, v_dim)
 
-    attn = DotProductAttention(scaled=scaled, embed_dim=10, num_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
+    if scaled:
+        attn = ScaledDotProductAttention(embed_dim=10, num_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
+    else:
+        attn = DotProductAttention(embed_dim=10, num_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
+
     context, weights = attn(q, k, v, out_weights=True)
     assert weights.shape == torch.Size((batch_size * num_heads, tgt_length, src_length))
     assert context.shape == torch.Size((batch_size, tgt_length, 10))

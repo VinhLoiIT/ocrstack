@@ -187,13 +187,16 @@ class Attention(nn.Module):
         return context, weights
 
 
-class DotProductAttention(Attention):
-    def __init__(self, scaled: bool = False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.scaled = scaled
+class ScaledDotProductAttention(Attention):
 
     def compute_scores(self, queries, keys):
-        return dot_product_score(queries, keys, self.scaled)
+        return dot_product_score(queries, keys, True)
+
+
+class DotProductAttention(Attention):
+
+    def compute_scores(self, queries, keys):
+        return dot_product_score(queries, keys, False)
 
 
 class AdditiveAttention(Attention):

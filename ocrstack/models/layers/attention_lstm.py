@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from .attention import DotProductAttention
+from .attention import ScaledDotProductAttention
 
 
 class AttentionLSTMCell(nn.Module):
@@ -28,8 +28,8 @@ class AttentionLSTMCell(nn.Module):
         self.lstm_cells.append(first_cell)
         self.lstm_cells.extend(later_cells)
 
-        self.attention = DotProductAttention(scaled=True, embed_dim=hidden_size,
-                                             k_dim=memory_size, v_dim=memory_size, num_heads=num_heads)
+        self.attention = ScaledDotProductAttention(embed_dim=hidden_size,
+                                                   k_dim=memory_size, v_dim=memory_size, num_heads=num_heads)
         self.out = nn.Linear(hidden_size, embed_size)
 
     def forward(self,
@@ -91,8 +91,8 @@ class AttentionGRUCell(nn.Module):
         self.gru_cells.append(first_cell)
         self.gru_cells.extend(later_cells)
 
-        self.attention = DotProductAttention(scaled=True, embed_dim=hidden_size,
-                                             k_dim=memory_size, v_dim=memory_size, num_heads=num_heads)
+        self.attention = ScaledDotProductAttention(embed_dim=hidden_size, k_dim=memory_size,
+                                                   v_dim=memory_size, num_heads=num_heads)
         self.out = nn.Linear(hidden_size, embed_size)
 
     def forward(self,
