@@ -86,8 +86,8 @@ def visualize_s2s(cfg: S2STrainConfig,
         predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
         predict_strs = translator.translate(predicts)[0]
 
-        for predict_str in predict_strs:
-            logger.info(predict_str)
+        for predict_str, tgt in zip(predict_strs, batch.text_str):
+            logger.info(f'Predict: {predict_str} ; Target: {tgt}')
 
 
 @torch.no_grad()
@@ -205,6 +205,7 @@ def train_s2s(cfg: S2STrainConfig,
         if lr_scheduler is not None:
             state_dict['lr_scheduler'] = lr_scheduler.state_dict()
         state_dict['epoch'] = epoch
+        return state_dict
 
     setup_logging()
     logger = logging.getLogger('Trainer')
