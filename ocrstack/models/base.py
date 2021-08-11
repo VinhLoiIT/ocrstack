@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ocrstack.data.collate import Batch
 from torch import Tensor
 from torch.nn import Module
@@ -27,9 +29,6 @@ class ITrainableModel(Module):
         '''
         raise NotImplementedError()
 
-    def predict_batch(self, batch: Batch) -> Tensor:
-        raise NotImplementedError()
-
 
 class IS2SModel(ITrainableModel):
 
@@ -42,15 +41,15 @@ class IS2SModel(ITrainableModel):
     We will use these methods to interact with your model.
     '''
 
-    def decode_greedy(self, images, image_mask, max_length):
-        # type: (Tensor, Tensor, int) -> Tensor
+    def decode_greedy(self, images, max_length, image_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tensor
         '''
         This method is for convenience only. In fact, it is a exactly decoding beamsearch where `beamsize=1`.
         '''
         raise NotImplementedError()
 
-    def decode_beamsearch(self, images, image_mask, max_length, beamsize):
-        # type: (Tensor, Tensor, int, int) -> Tensor
+    def decode_beamsearch(self, images, max_length, beamsize, image_mask=None):
+        # type: (Tensor, int, int, Optional[Tensor]) -> Tensor
         '''
         '''
         raise NotImplementedError()
@@ -67,14 +66,14 @@ class ICTCModel(ITrainableModel):
     We will use these methods to interact with your model.
     '''
 
-    def decode_greedy(self, images, image_mask):
-        # type: (Tensor, Tensor) -> Tensor
+    def decode_greedy(self, images, image_mask=None):
+        # type: (Tensor, Optional[Tensor]) -> Tensor
         '''
         '''
         raise NotImplementedError()
 
-    def decode_beamsearch(self, images, image_mask, beamsize):
-        # type: (Tensor, Tensor, int) -> Tensor
+    def decode_beamsearch(self, images, beamsize, image_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tensor
         '''
         '''
         raise NotImplementedError()

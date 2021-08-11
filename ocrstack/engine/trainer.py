@@ -55,7 +55,7 @@ def _validate_s2s_iteration(cfg: S2STrainConfig,
                             batch: Batch
                             ) -> Tuple[float, List[str]]:
     loss = model.forward_batch(batch)
-    predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
+    predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)
     predict_strs = translator.translate(predicts)[0]
     return loss.item(), predict_strs
 
@@ -83,7 +83,7 @@ def visualize_s2s(cfg: S2STrainConfig,
         if i == num_iter:
             break
         batch = batch.to(cfg.device)
-        predicts = model.decode_greedy(batch.images, batch.image_mask, cfg.max_length)
+        predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)
         predict_strs = translator.translate(predicts)[0]
 
         for predict_str, tgt in zip(predict_strs, batch.text_str):
