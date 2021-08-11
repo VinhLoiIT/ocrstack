@@ -146,7 +146,7 @@ class Attention(nn.Module):
                 q_padding_mask: Optional[Tensor] = None,
                 key_padding_mask: Optional[Tensor] = None,
                 attn_mask: Optional[Tensor] = None,
-                out_weights: bool = False,
+                out_weights: bool = True,
                 ) -> Tuple[Tensor, Optional[Tensor]]:
         r"""
         Shapes:
