@@ -66,7 +66,8 @@ class TransformerDecoder(nn.Module):
     def decode(self, memory, max_length, memory_key_padding_mask=None):
         # type: (Tensor, int, Optional[Tensor]) -> Tensor
         outputs: List[Tensor] = []
-        inputs = torch.full((memory.size(0), 1), self.sos_idx, dtype=torch.long, device=memory.device)
+        sos_inputs = torch.full((memory.size(0), 1), self.sos_idx, dtype=torch.long, device=memory.device)
+        inputs = sos_inputs
         end_flag = torch.zeros(memory.size(0), dtype=torch.bool, device=memory.device)
         for _ in range(max_length):
             output = self.forward(memory, inputs, memory_key_padding_mask)  # [B, T, V]
@@ -82,6 +83,8 @@ class TransformerDecoder(nn.Module):
             if end_flag.all():
                 break
 
+        sos_inputs = F.one_hot(sos_inputs, outputs[-1].size(-1))
+        outputs.insert(0, sos_inputs)
         return torch.cat(outputs, dim=1)                                    # [B, T, V]
 
 
