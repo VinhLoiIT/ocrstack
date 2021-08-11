@@ -113,31 +113,25 @@ class Attention(nn.Module):
     def compute_scores(self, queries, keys):
         raise NotImplementedError()
 
-    def prepare_multihead(self, queries: Tensor, keys: Tensor, values: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-        B = queries.size(0)
-        T = queries.size(1)
-        S = keys.size(1)
+    def _prepare_multihead(self, inputs: Tensor) -> Tensor:
+        r"""
+        inputs: (B, L, E)
+        outputs: (B, num_heads, L, head_dim)
+        """
+        B, L, E = inputs.shape
+        inputs = inputs.reshape(B, L, self.num_heads, self.head_dim)                      # (B, S, N, H)
+        inputs = inputs.transpose(1, 2).reshape(B * self.num_heads, L, self.head_dim)     # (B * N, S, H)
+        return inputs
 
-        queries = queries.reshape(B, T, self.num_heads, self.head_dim)                      # (B, T, N, H)
-        queries = queries.transpose(1, 2).reshape(B * self.num_heads, T, self.head_dim)     # (B * N, T, H)
-
-        keys = keys.reshape(B, S, self.num_heads, self.head_dim)                      # (B, S, N, H)
-        keys = keys.transpose(1, 2).reshape(B * self.num_heads, S, self.head_dim)     # (B * N, S, H)
-
-        values = values.reshape(B, S, self.num_heads, self.head_dim)                      # (B, S, N, H)
-        values = values.transpose(1, 2).reshape(B * self.num_heads, S, self.head_dim)     # (B * N, S, H)
-
-        return queries, keys, values
-
-    def prepare_multihead_padding(self, padding_mask: Tensor) -> Tensor:
+    def _prepare_multihead_padding(self, padding_mask: Tensor) -> Tensor:
         '''
-        in: (B, *)
-        out: (B * N, *)
+        in: (B, L)
+        out: (B * N, L)
         '''
-        head_padding_mask = padding_mask.unsqueeze(1)  # (B, 1, *)
-        shape = list(head_padding_mask.shape)
-        shape[1] = self.num_heads
-        return head_padding_mask.expand(*shape).reshape(-1, *padding_mask.shape[1:])
+        B, L = padding_mask.shape
+        padding_mask = padding_mask.unsqueeze(1).expand(B, self.num_heads, L)           # (B, N, L)
+        padding_mask = padding_mask.reshape(B * self.num_heads, L)                      # (B * N, L)
+        return padding_mask
 
     def forward(self,
                 queries,
@@ -166,11 +160,14 @@ class Attention(nn.Module):
         tgt_length = queries.size(1)
 
         if self.num_heads > 1:
-            queries, keys, values = self.prepare_multihead(queries, keys, values)
+            queries = self._prepare_multihead(queries)      # (B * N, T, H)
+            keys = self._prepare_multihead(keys)            # (B * N, S, H)
+            values = self._prepare_multihead(values)        # (B * N, S, H)
+
             if q_padding_mask is not None:
-                q_padding_mask = self.prepare_multihead_padding(q_padding_mask)
+                q_padding_mask = self._prepare_multihead_padding(q_padding_mask)
             if key_padding_mask is not None:
-                key_padding_mask = self.prepare_multihead_padding(key_padding_mask)
+                key_padding_mask = self._prepare_multihead_padding(key_padding_mask)
             scores = self.compute_scores(queries, keys)     # (B, T, S)
             context, weights = attention(scores, values, q_padding_mask, key_padding_mask, attn_mask, out_weights)
             # context: (B * N, T, H)
@@ -178,11 +175,11 @@ class Attention(nn.Module):
             context = context.reshape(batch_size, self.num_heads, tgt_length, self.head_dim)
             context = context.transpose(1, 2)                                           # (B, T, N, H)
             context = context.reshape(batch_size, tgt_length, self.embed_dim)           # (B, T, E)
-            context = self.out_proj(context)                                            # (B, T, E)
         else:
             scores = self.compute_scores(queries, keys)     # (B, T, S)
             context, weights = attention(scores, values, q_padding_mask, key_padding_mask, attn_mask, out_weights)
-            context = self.out_proj(context)
+
+        context = self.out_proj(context)                                            # (B, T, E)
 
         return context, weights
 

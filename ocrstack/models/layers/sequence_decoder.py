@@ -56,7 +56,7 @@ class TransformerDecoder(nn.Module):
         for layer in self.layers:
             out = layer(out, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask)
 
-        if self.layer_norm:
+        if self.layer_norm is not None:
             out = self.layer_norm(out)
 
         out = self.out_embed(out)                   # [B, T, V]

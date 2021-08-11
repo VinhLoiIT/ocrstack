@@ -43,11 +43,11 @@ class PositionalEncoding2d(nn.Module):
         '''
         x: [B,C,H,W]
         '''
+        B, C, H, W = x.shape
         x = x.permute(0, 2, 3, 1)  # [B,H,W,C]
-        xshape = x.shape
-        x = x.reshape(-1, x.size(2), x.size(3))  # [B*H,W,C]
-        x = x + self.pe[:, :x.size(1), :]
-        x = x.reshape(*xshape)  # [B,H,W,C]
+        x = x.reshape(B * H, W, C) # [B*H,W,C]
+        x = x + self.pe[:, :W, :]
+        x = x.reshape(B, H, W, C)  # [B,H,W,C]
         x = x.permute(0, 3, 1, 2)  # [B,C,H,W]
         return self.dropout(x)
 
