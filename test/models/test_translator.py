@@ -7,7 +7,10 @@ from ocrstack.models.layers.translator import seq2seq_translate
 
 @pytest.fixture()
 def vocab():
-    return Seq2SeqVocab(list('12345'))
+    tokens = '1 2 3 4 5 <u> <s> </s> <p>'.split()
+    stoi = {s: i for i, s in enumerate(tokens)}
+    vocab = Seq2SeqVocab(stoi, '<u>')
+    return vocab
 
 
 @pytest.fixture()

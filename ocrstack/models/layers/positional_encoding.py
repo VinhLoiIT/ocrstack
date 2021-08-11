@@ -44,11 +44,11 @@ class PositionalEncoding2d(nn.Module):
         x: [B,C,H,W]
         '''
         B, C, H, W = x.shape
-        x = x.permute(0, 2, 3, 1)  # [B,H,W,C]
-        x = x.reshape(B * H, W, C) # [B*H,W,C]
+        x = x.permute(0, 2, 3, 1)   # (B, H, W, C)
+        x = x.reshape(B * H, W, C)  # (B * H, W, C)
         x = x + self.pe[:, :W, :]
-        x = x.reshape(B, H, W, C)  # [B,H,W,C]
-        x = x.permute(0, 3, 1, 2)  # [B,C,H,W]
+        x = x.reshape(B, H, W, C)   # (B, H, W, C)
+        x = x.permute(0, 3, 1, 2)   # (B, C, H, W)
         return self.dropout(x)
 
 
@@ -65,9 +65,9 @@ class A2DPE(nn.Module):
         self.dropout = nn.Dropout(p=dropout, inplace=False)
 
         pe = torch.zeros(max_len, cnn_features)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze_(1)  # [T,1]
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze_(1)        # (T, 1)
         div_term = torch.exp(torch.arange(0, cnn_features, 2).float() *
-                             (-torch.log(torch.tensor(10000.0)) / cnn_features))  # [E]
+                             (-torch.log(torch.tensor(10000.0)) / cnn_features))    # (E,)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze_(0)

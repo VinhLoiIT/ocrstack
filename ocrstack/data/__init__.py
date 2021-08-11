@@ -1,2 +1,2 @@
 from .dataset import OCRDataset
-from .vocab import Vocab, VocabAdapter, CTCVocab, Seq2SeqVocab
+from .vocab import Vocab, CTCVocab, Seq2SeqVocab

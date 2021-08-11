@@ -1,57 +1,48 @@
-from collections import Counter
-from os import PathLike
-from typing import List, Union
+import json
+from typing import Dict, List, Optional, Union
 
 import torch
 import torch.nn.functional as F
 
 
-class VocabAdapter():
-    def __init__(self):
-        pass
+class Vocab:
 
-    def char2int(self, char: str) -> int:
-        pass
+    r'''
+    Base class for vocabulary representation.
 
-    def int2char(self, index: int) -> str:
-        pass
+    Arguments:
+    - stoi: string-to-index dict.
+    - unk: default for out-of-vocabulary token. It must be contained in `stoi`.
+    If `None`, `KeyError` exception will be raised. Default is `None`
+    '''
 
-    def __len__(self):
-        pass
-
-
-class _ListVocabAdapter(VocabAdapter):
-    def __init__(self, alphabets: List[str], specials: List[str] = []):
-        self.itos = specials + alphabets
-        self.stoi = {c: i for i, c in enumerate(self.itos)}
-
-    def char2int(self, char: str) -> int:
-        return self.stoi[char]
-
-    def int2char(self, index: int) -> str:
-        return self.itos[index]
-
-    def __len__(self) -> int:
-        return len(self.itos)
-
-
-class Vocab():
     def __init__(self,
-                 vocab: Union[Counter, List, VocabAdapter],
-                 specials: List[str] = []):
-        self.adapter: VocabAdapter
-        if isinstance(vocab, VocabAdapter):
-            self.adapter = vocab
-        elif isinstance(vocab, list):
-            self.adapter = _ListVocabAdapter(vocab, specials)
-        else:
-            raise ValueError(f'Unknow type of vocab. type = {type(vocab)}')
-
-        self.char2int = self.adapter.char2int
-        self.int2char = self.adapter.int2char
+                 stoi: Dict[str, int],
+                 unk: Optional[str] = None):
+        self.stoi = stoi
+        self.itos = {v: k for k, v in stoi.items()}
+        if unk is not None and unk not in stoi.keys():
+            raise ValueError(f'{unk} must be contained in stoi')
+        self.unk = unk
 
     def __len__(self):
-        return len(self.adapter)
+        return len(self.stoi)
+
+    def char2int(self, s: str) -> int:
+        try:
+            return self.stoi[s]
+        except KeyError as e:
+            if self.unk is not None:
+                return self.stoi[self.unk]
+            raise e
+
+    def int2char(self, i: int) -> str:
+        try:
+            return self.itos[i]
+        except KeyError as e:
+            if self.unk is not None:
+                return self.unk
+            raise e
 
     def onehot(self, tokens: Union[str, List[str]]) -> torch.Tensor:
         if isinstance(tokens, str):
@@ -60,38 +51,22 @@ class Vocab():
         return F.one_hot(torch.tensor(token_idx), len(self))  # [T, V]
 
     @classmethod
-    def from_file(cls, vocab_path: PathLike):
-        with open(vocab_path, 'rt', encoding='utf8') as f:
-            alphabets = f.readline().strip()
-
-        return cls(list(alphabets))
-
-    @classmethod
-    def from_csv(cls, vocab_path: PathLike):
-        import csv
-        with open(vocab_path, 'rt', encoding='utf8') as f:
-            reader = csv.reader(f)
-            alphabets = [line[0] for line in reader]
-
-        return cls(alphabets)
-
-    @classmethod
-    def from_dataset(cls, dataset):
-        char_set = set()
-        for item in dataset:
-            raw_text = item.get('text_str', '')
-            char_set = char_set.union(set(raw_text))
-        return cls(list(char_set))
+    def from_json_stoi(cls, f, *args, **kwargs):
+        stoi = json.load(f)
+        return cls(stoi, *args, **kwargs)
 
     def __str__(self) -> str:
-        return f'{self.adapter.stoi}'
+        return f'{self.stoi}'
 
 
 class CTCVocab(Vocab):
     def __init__(self,
-                 vocab: Union[Counter, List, VocabAdapter],
+                 stoi: Dict[str, int],
+                 unk: Optional[str] = None,
                  blank: str = '~'):
-        super(CTCVocab, self).__init__(vocab, [blank])
+        super(CTCVocab, self).__init__(stoi, unk)
+        if blank not in stoi.keys():
+            raise ValueError(f'{blank} must be contained in stoi')
         self.blank = blank
 
     @property
@@ -105,11 +80,18 @@ class CTCVocab(Vocab):
 
 class Seq2SeqVocab(Vocab):
     def __init__(self,
-                 vocab: Union[Counter, List, VocabAdapter],
-                 sos: str = '<sos>',
-                 eos: str = '<eos>',
-                 pad: str = '<pad>'):
-        super(Seq2SeqVocab, self).__init__(vocab, [sos, eos, pad])
+                 stoi: Dict[str, int],
+                 unk: Optional[str] = None,
+                 sos: str = '<s>',
+                 eos: str = '</s>',
+                 pad: str = '<p>'):
+        super(Seq2SeqVocab, self).__init__(stoi, unk)
+        if sos not in stoi.keys():
+            raise ValueError(f'{sos} must be contained in stoi')
+        if eos not in stoi.keys():
+            raise ValueError(f'{eos} must be contained in stoi')
+        if pad not in stoi.keys():
+            raise ValueError(f'{pad} must be contained in stoi')
         self.__sos = sos
         self.__eos = eos
         self.__pad = pad
@@ -132,7 +114,7 @@ class Seq2SeqVocab(Vocab):
 
     @property
     def PAD(self):
-        return self.__eos
+        return self.__pad
 
     @property
     def PAD_IDX(self):
