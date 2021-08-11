@@ -1,31 +1,24 @@
 import pytest
 import torch
 from ocrstack.models.layers.attention import (AdditiveAttention, Attention,
-                                              DotProductAttention, ScaledDotProductAttention,
-                                              dot_product_score, multihead_attention)
+                                              DotProductAttention, ScaledDotProductAttention, attention)
 
 
-@pytest.mark.parametrize('num_heads', (1, 2))
-def test_multihead_attention(num_heads):
+def test_attention():
     torch.manual_seed(0)
-    B, T, S = 2, 3, 4
-    queries = torch.rand(B, T, 6)   # [B, T, E]
-    keys = torch.rand(B, S, 6)      # [B, S, E]
-    values = torch.rand(B, S, 6)    # [B, S, E]
-    score_func = dot_product_score
+    scores = torch.rand(2, 3, 4)    # [B, T, S]
+    values = torch.rand(2, 4, 5)    # [B, S, E]
 
     q_padding_mask = torch.tensor([[0, 0, 1], [0, 1, 1]], dtype=torch.bool)
     assert q_padding_mask.shape == torch.Size([2, 3])
 
     key_padding_mask = torch.tensor([[0, 0, 0, 1], [0, 0, 1, 1]], dtype=torch.bool)
     assert key_padding_mask.shape == torch.Size([2, 4])
-    context, weights = multihead_attention(queries, keys, values, score_func, num_heads,
-                                           q_padding_mask, key_padding_mask, out_weights=True)
 
     padding_mask = torch.bitwise_or(q_padding_mask.unsqueeze(-1), key_padding_mask.unsqueeze(-2))
-    padding_mask = padding_mask.unsqueeze_(1).expand(B, num_heads, T, S)
+
+    values, weights = attention(scores, values, q_padding_mask, key_padding_mask, out_weights=True)
     assert (weights.masked_select(padding_mask) == 0).all()
-    assert context.shape == torch.Size((B, T, 6))
 
 
 def test_not_divisible_numheads():
@@ -52,7 +45,7 @@ def test_dot_prod_attention(batch_size, src_length, tgt_length, k_dim, v_dim, nu
         attn = DotProductAttention(embed_dim=10, num_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
 
     context, weights = attn(q, k, v, out_weights=True)
-    assert weights.shape == torch.Size((batch_size, num_heads, tgt_length, src_length))
+    assert weights.shape == torch.Size((batch_size * num_heads, tgt_length, src_length))
     assert context.shape == torch.Size((batch_size, tgt_length, 10))
 
 
@@ -70,5 +63,5 @@ def test_additive_attention(batch_size, src_length, tgt_length, k_dim, v_dim, nu
 
     attn = AdditiveAttention(embed_dim=10, num_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
     context, weights = attn(q, k, v, out_weights=True)
-    assert weights.shape == torch.Size((batch_size, num_heads, tgt_length, src_length))
+    assert weights.shape == torch.Size((batch_size * num_heads, tgt_length, src_length))
     assert context.shape == torch.Size((batch_size, tgt_length, 10))

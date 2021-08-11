@@ -1,5 +1,4 @@
-import math
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -7,72 +6,32 @@ import torch.nn.functional as F
 from torch import Tensor
 
 
-def multihead_attention(queries: Tensor,
-                        keys: Tensor,
-                        values: Tensor,
-                        score_func: Callable[[Tensor, Tensor], Tensor],
-                        num_heads: int = 1,
-                        q_padding_mask: Optional[Tensor] = None,
-                        key_padding_mask: Optional[Tensor] = None,
-                        attn_mask: Optional[Tensor] = None,
-                        out_weights: bool = False,
-                        ) -> Tuple[Tensor, Optional[Tensor]]:
-    r"""
-    queries: (B, T, E)
-    keys: (B, S, E)
-    values: (B, S, E)
-    score_func: a callable receive queries and keys to compute relation score
-    num_heads: the number of head if multihead attention
-    q_padding_mask: (B, T)
-    k_padding_mask: (B, S)
-    attn_mask: (B, T, S)
-    out_weights: return attention weight or not
-    """
-    assert queries.size(-1) == keys.size(-1) and keys.size(-1) == values.size(-1)
-    embed_dim = queries.size(-1)
-    head_dim = embed_dim // num_heads
-    assert head_dim * num_heads == embed_dim
-
-    B = queries.size(0)
-    T = queries.size(1)
-    S = keys.size(1)
-    if num_heads > 1:
-        queries = queries.reshape(B, T, num_heads, head_dim)                    # (B, T, N, H)
-        queries = queries.transpose(1, 2).reshape(B, num_heads, T, head_dim)    # (B, N, T, H)
-
-        keys = keys.reshape(B, S, num_heads, head_dim)                          # (B, S, N, H)
-        keys = keys.transpose(1, 2).reshape(B, num_heads, S, head_dim)          # (B, N, S, H)
-
-        values = values.reshape(B, S, num_heads, head_dim)                      # (B, S, N, H)
-        values = values.transpose(1, 2).reshape(B, num_heads, S, head_dim)      # (B, N, S, H)
-    else:
-        queries = queries.unsqueeze(1)                                          # (B, N=1, T, H=E)
-        keys = keys.unsqueeze(1)                                                # (B, N=1, S, H=E)
-        values = values.unsqueeze(1)                                            # (B, N=1, S, H=E)
-
-    scores = score_func(queries, keys)                                          # (B, N, T, S)
+def attention(scores: Tensor,
+              values: Tensor,
+              q_padding_mask: Optional[Tensor] = None,
+              key_padding_mask: Optional[Tensor] = None,
+              attn_mask: Optional[Tensor] = None,
+              out_weights: bool = False,
+              ) -> Tuple[Tensor, Optional[Tensor]]:
 
     if key_padding_mask is not None:
-        key_padding_mask = key_padding_mask.unsqueeze(1).unsqueeze(1)           # (B, 1, 1, S)
-        scores = scores.masked_fill(key_padding_mask, float('-inf'))            # (B, N, T, S)
+        key_padding_mask = key_padding_mask.unsqueeze(-2)       # [B, 1, S]
+        scores = scores.masked_fill(key_padding_mask, float('-inf'))  # [B, T, S]
 
     if attn_mask is not None:
-        attn_mask = attn_mask.unsqueeze(1)                                      # (B, N=1, T, S)
-        scores = scores.masked_fill(~attn_mask, float('-inf'))                  # (B, N, T, S)
+        scores = scores.masked_fill(~attn_mask, float('-inf'))
 
-    weights = F.softmax(scores, dim=-1)                                         # (B, N, T, S)
+    weights = F.softmax(scores, dim=-1)
 
     if q_padding_mask is not None:
-        q_padding_mask = q_padding_mask.unsqueeze(1).unsqueeze(-1)              # (B, 1, T, 1)
-        weights = weights.masked_fill(q_padding_mask, 0.0)                      # (B, N, T, S)
+        q_padding_mask = q_padding_mask.unsqueeze(-1)       # [B, T, 1]
+        weights = weights.masked_fill(q_padding_mask, 0.0)  # [B, T, S]
 
-    context = torch.matmul(weights, values)                                     # (B, N, T, H)
-    context = context.transpose(1, 2).reshape(B, T, embed_dim)                  # (B, T, E)
-
+    values = weights.bmm(values)
     if out_weights:
-        return context, weights
+        return values, weights
     else:
-        return context, None
+        return values, None
 
 
 def additive_score(queries: Tensor,
@@ -86,36 +45,36 @@ def additive_score(queries: Tensor,
                    ) -> Tensor:
     '''
     Input:
-    - queries: [*, T, A]
-    - keys: [*, S, A]
-    - attn_mask: [*, T, S] - BoolTensor, value True for where T can attention at S
+    - queries: [B, T, A]
+    - keys: [B, S, A]
+    - attn_mask: [B, T, S] - BoolTensor, value True for where T can attention at S
     Output:
-    - score: [*, T, S]
+    - score: [B, T, S]
     '''
-    keys = F.linear(keys, W_k, bias_k)          # [*, S, A]
-    queries = F.linear(queries, W_q, bias_q)    # [*, T, A]
+    keys = F.linear(keys, W_k, bias_k)          # [B, S, A]
+    queries = F.linear(queries, W_q, bias_q)    # [B, T, A]
 
-    keys = keys.unsqueeze(-3)                    # [*, 1, S, A]
-    queries = queries.unsqueeze(-2)              # [*, T, 1, A]
+    keys = keys.unsqueeze(1)                    # [B, 1, S, A]
+    queries = queries.unsqueeze(2)              # [B, T, 1, A]
 
-    score = F.linear(torch.tanh(queries + keys), v_a, bias_a)     # [*, T, S, 1]
-    score = score.squeeze(-1)                                     # [*, T, S]
+    score = F.linear(torch.tanh(queries + keys), v_a, bias_a)     # [B, T, S, 1]
+    score = score.squeeze(-1)                                     # [B, T, S]
     return score
 
 
 def dot_product_score(queries: Tensor, keys: Tensor, scaled: bool = False):
     '''
     Input:
-    - queries: [*, T, A]
-    - keys: [*, S, A]
+    - queries: [B, T, A]
+    - keys: [B, S, A]
     Output:
-    - score: [*, T, S]
+    - score: [B, T, S]
     '''
-    # [*, T, A] x [*, A, S] = [*, T, S]
+    # [B,T,A] x [B,A,S] = [B,T,S]
     if scaled:
         attn_dim = queries.size(-1)
-        queries = queries / math.sqrt(attn_dim)
-    score = torch.matmul(queries, keys.transpose(-1, -2))       # [*, T, S]
+        queries = queries / (attn_dim**0.5)
+    score = queries.bmm(keys.transpose(1, 2))       # [B,T,S]
     return score
 
 
@@ -154,6 +113,32 @@ class Attention(nn.Module):
     def compute_scores(self, queries, keys):
         raise NotImplementedError()
 
+    def prepare_multihead(self, queries: Tensor, keys: Tensor, values: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+        B = queries.size(0)
+        T = queries.size(1)
+        S = keys.size(1)
+
+        queries = queries.reshape(B, T, self.num_heads, self.head_dim)                      # (B, T, N, H)
+        queries = queries.transpose(1, 2).reshape(B * self.num_heads, T, self.head_dim)     # (B * N, T, H)
+
+        keys = keys.reshape(B, S, self.num_heads, self.head_dim)                      # (B, S, N, H)
+        keys = keys.transpose(1, 2).reshape(B * self.num_heads, S, self.head_dim)     # (B * N, S, H)
+
+        values = values.reshape(B, S, self.num_heads, self.head_dim)                      # (B, S, N, H)
+        values = values.transpose(1, 2).reshape(B * self.num_heads, S, self.head_dim)     # (B * N, S, H)
+
+        return queries, keys, values
+
+    def prepare_multihead_padding(self, padding_mask: Tensor) -> Tensor:
+        '''
+        in: (B, *)
+        out: (B * N, *)
+        '''
+        head_padding_mask = padding_mask.unsqueeze(1)  # (B, 1, *)
+        shape = list(head_padding_mask.shape)
+        shape[1] = self.num_heads
+        return head_padding_mask.expand(*shape).reshape(-1, *padding_mask.shape[1:])
+
     def forward(self,
                 queries,
                 keys,
@@ -177,11 +162,27 @@ class Attention(nn.Module):
         keys = self.in_proj_k(keys)
         values = self.in_proj_v(values)
 
-        context, weights = multihead_attention(queries, keys, values, self.compute_scores,
-                                               self.num_heads, q_padding_mask, key_padding_mask, attn_mask,
-                                               out_weights)
+        batch_size = queries.size(0)
+        tgt_length = queries.size(1)
 
-        context = self.out_proj(context)
+        if self.num_heads > 1:
+            queries, keys, values = self.prepare_multihead(queries, keys, values)
+            if q_padding_mask is not None:
+                q_padding_mask = self.prepare_multihead_padding(q_padding_mask)
+            if key_padding_mask is not None:
+                key_padding_mask = self.prepare_multihead_padding(key_padding_mask)
+            scores = self.compute_scores(queries, keys)     # (B, T, S)
+            context, weights = attention(scores, values, q_padding_mask, key_padding_mask, attn_mask, out_weights)
+            # context: (B * N, T, H)
+            # weights: (B * N, T, H)
+            context = context.reshape(batch_size, self.num_heads, tgt_length, self.head_dim)
+            context = context.transpose(1, 2)                                           # (B, T, N, H)
+            context = context.reshape(batch_size, tgt_length, self.embed_dim)           # (B, T, E)
+            context = self.out_proj(context)                                            # (B, T, E)
+        else:
+            scores = self.compute_scores(queries, keys)     # (B, T, S)
+            context, weights = attention(scores, values, q_padding_mask, key_padding_mask, attn_mask, out_weights)
+            context = self.out_proj(context)
 
         return context, weights
 
