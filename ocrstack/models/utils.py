@@ -8,8 +8,8 @@ def generate_padding_mask_from_lengths(lengths: torch.Tensor) -> torch.Tensor:
 
 
 def generate_square_subsequent_mask(sz: int) -> torch.Tensor:
-    r"""Generate a square mask for the sequence. The masked positions are filled with float('-inf').
-        Unmasked positions are filled with float(0.0).
+    r"""Generate a square mask for the sequence. The masked positions are True.
+        Unmasked positions are filled with False.
     """
     mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
     return mask
