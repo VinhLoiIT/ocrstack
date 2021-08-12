@@ -3,10 +3,10 @@ from typing import Dict, List, Optional, Union
 
 import torch
 from ocrstack.data.collate import Batch
+from ocrstack.data.vocab import ITranslator
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.metrics.ocr import ACCMeter, CERMeter, WERMeter
 from ocrstack.models.base import ITrainableModel
-from ocrstack.models.layers.translator import ITranslator
 from torch.utils.data.dataloader import DataLoader
 
 
