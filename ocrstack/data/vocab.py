@@ -1,5 +1,7 @@
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+import torch
 
 
 class Vocab:
@@ -82,6 +84,34 @@ class CTCVocab(Vocab):
     def BLANK_IDX(self):
         return self.lookup_index(self.blank)
 
+    def translate(self,
+                  predicts: torch.Tensor,
+                  return_raw: bool = False
+                  ) -> Tuple[List[str], List[List[float]]]:
+        if return_raw:
+            predicts = predicts.cpu()
+            probs_, indices_ = predicts.max(dim=-1)
+            strs = [''.join(self.lookup_tokens(indices)) for indices in indices_]
+            return strs, probs_.tolist()
+
+        predicts = predicts.argmax(dim=-1)  # [B, T]
+        blank_idx = self.BLANK_IDX
+        results: List[List[int]] = []
+        probs: List[List[float]] = []
+        for predict in predicts.cpu().tolist():
+            # remove duplications
+            predict = [predict[0]] + [c for i, c in enumerate(predict[1:]) if c != predict[i]]
+            # remove 'blank'
+            predict = list(filter(lambda i: i != blank_idx, predict))
+            results.append(predict)
+
+            # TODO: calculate prob here
+            prob = [0.]
+            probs.append(prob)
+
+        samples = [''.join(self.lookup_tokens(result)) for result in results]
+        return samples, probs
+
 
 class Seq2SeqVocab(Vocab):
     def __init__(self,
@@ -124,3 +154,89 @@ class Seq2SeqVocab(Vocab):
     @property
     def PAD_IDX(self):
         return self.lookup_index(self.__pad)
+
+    def translate(self,
+                  predicts: torch.Tensor,
+                  reduce_token: str = '',
+                  keep_sos: bool = False,
+                  keep_eos: bool = False,
+                  keep_pad: bool = False
+                  ) -> Tuple[List[str], List[List[float]]]:
+        '''
+        Arguments:
+        ----------
+        predicts: [B, T, V]
+        '''
+        predicts = predicts.cpu()
+
+        probs, indices = predicts.max(dim=-1)                   # [B, T]
+
+        sos_mask = indices == self.SOS_IDX                     # [B, T]
+        eos_mask = indices == self.EOS_IDX                     # [B, T]
+
+        sos_pos = sos_mask.max(-1)[1]                           # [B]
+        eos_pos = eos_mask.max(-1)[1]                           # [B]
+
+        # TODO: implement keep_pad
+
+        if not keep_sos:
+            sos_pos += 1
+        sos_pos.masked_fill_(torch.bitwise_not(torch.any(sos_mask, dim=-1)), 0)
+
+        if keep_eos:
+            eos_pos += 1
+        eos_pos.masked_fill_(torch.bitwise_not(torch.any(eos_mask, dim=-1)), predicts.size(1))
+
+        char_probs: List[List[float]] = []
+        strings: List[str] = []
+
+        for probs_, indices_, start, end in zip(probs.tolist(), indices.tolist(), sos_pos, eos_pos):
+            s = reduce_token.join(self.lookup_tokens(indices_[start:end]))
+            p = probs_[start:end]
+            strings.append(s)
+            char_probs.append(p)
+
+        return strings, char_probs
+
+
+class ITranslator:
+
+    def translate(self, predicts: torch.Tensor) -> Tuple[List[str], List[List[float]]]:
+        raise NotImplementedError()
+
+
+class CTCTranslator(ITranslator):
+
+    def __init__(self, vocab, return_raw=False):
+        # type: (CTCVocab, bool) -> None
+        self.vocab = vocab
+        self.return_raw = return_raw
+
+    def translate(self, predicts):
+        # type: (torch.Tensor,) -> Tuple[List[str], List[List[float]]]
+        '''
+        Shapes:
+        -------
+        - predicts: (B, T, V)
+        '''
+        return self.vocab.translate(predicts, self.return_raw)
+
+
+class Seq2SeqTranslator(ITranslator):
+
+    def __init__(self, vocab, reduce_token, keep_sos=True, keep_eos=True, keep_pad=False):
+        # type: (Seq2SeqVocab, str, bool, bool, bool) -> None
+        self.vocab = vocab
+        self.reduce_token = reduce_token
+        self.keep_sos = keep_sos
+        self.keep_eos = keep_eos
+        self.keep_pad = keep_pad
+
+    def translate(self, predicts):
+        # type: (torch.Tensor,) -> Tuple[List[str], List[List[float]]]
+        '''
+        Shapes:
+        -------
+        - predicts: (B, T, V)
+        '''
+        return self.vocab.translate(predicts, self.reduce_token, self.keep_sos, self.keep_eos, self.keep_pad)
