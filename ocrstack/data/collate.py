@@ -24,18 +24,19 @@ class Batch:
 
 
 class BatchCollator:
-    def __init__(self, text_padding_value=0, image_padding_value=0., sort_length=True, batch_first=True):
+    def __init__(self, text_padding_value=0, image_padding_value=0., sort_length=False, batch_first=True):
         # type: (int, float, bool, bool) -> None
-        '''
-        text_padding_value: Value which will be used for text padding since text might have different sizes.
-            Default is 0
-        image_padding_value: Value which will be used for image padding since images might have different sizes.
-            Default is 0.
-        sort_length: Sort samples by its groundtruth length.
-            Default is True.
-        batch_first: returned padded text is (B, T) if batch_first is True, otherwise (T, B)
-            Default is True
-        '''
+        r"""
+        Args:
+            text_padding_value: Value which will be used for text padding since text might have different sizes.
+                Default is 0
+            image_padding_value: Value which will be used for image padding since images might have different sizes.
+                Default is 0.
+            sort_length: Sort samples by its groundtruth length.
+                Default is False.
+            batch_first: returned padded text is (B, T) if batch_first is True, otherwise (T, B)
+                Default is True
+        """
         self.text_padding_value = text_padding_value
         self.image_padding_value = image_padding_value
         self.sort_length = sort_length
