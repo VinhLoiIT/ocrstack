@@ -128,7 +128,7 @@ def validate_s2s(cfg: S2STrainConfig,
 
         if (i + 1) % log_interval == 0:
             logger.info('Epoch [{:3d}] - [{:6.2f}%] val_loss = {:.4f} - {}'.format(
-                epoch + 1,
+                epoch,
                 (i + 1) * 100 / num_iter,
                 total_loss.compute(),
                 ' - '.join([f'{k}: {v.compute():.4f}' for k, v in metrics.items()])
@@ -143,7 +143,7 @@ def validate_s2s(cfg: S2STrainConfig,
             tb_writer.add_scalar(f'Validation/{k}', v, epoch)
 
     logger.info('Epoch [{:3d}] - val_loss = {:.4f} - {}'.format(
-        epoch + 1,
+        epoch,
         val_loss,
         ' - '.join([f'{k}: {v:.4f}' for k, v in out_metrics.items()])
     ))
