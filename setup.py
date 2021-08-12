@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     setup_requires=['pbr'],
-    pbr=True,
+    pbr=False,
     packages=setuptools.find_packages(exclude=['test']),
     python_requires='>=3.7',
     install_requires=[
@@ -10,7 +10,7 @@ setuptools.setup(
         'matplotlib>=3.3',
         'editdistance',
         'pillow>=7',
-        'pyyaml>=5.4.1',
+        'pyyaml>=5',
         'torchinfo>=1.5',
     ],
 )
