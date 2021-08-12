@@ -9,8 +9,8 @@ def stoi():
 
 def test_default_vocab(stoi):
     vocab = Vocab(stoi, unk=None)
-    assert vocab.char2int('1') == 1
-    assert vocab.int2char(1) == '1'
+    assert vocab.lookup_index('1') == 1
+    assert vocab.lookup_token(1) == '1'
 
     with pytest.raises(ValueError):
         vocab = Vocab(stoi, unk='0')
@@ -20,11 +20,11 @@ def test_out_of_vocab(stoi):
     # out-of-vocab and not passed unk token
     vocab = Vocab(stoi, unk=None)
     with pytest.raises(KeyError):
-        vocab.char2int('0')
+        vocab.lookup_index('0')
 
     # out-of-vocab and passed unk token
     vocab = Vocab(stoi, unk='1')
-    assert vocab.char2int('0') == vocab.char2int('1')
+    assert vocab.lookup_index('0') == vocab.lookup_index('1')
 
 
 def test_s2s_vocab(stoi):

@@ -1,8 +1,5 @@
 import json
-from typing import Dict, List, Optional, Union
-
-import torch
-import torch.nn.functional as F
+from typing import Dict, List, Optional
 
 
 class Vocab:
@@ -28,27 +25,35 @@ class Vocab:
     def __len__(self):
         return len(self.stoi)
 
-    def char2int(self, s: str) -> int:
+    def lookup_index(self, token: str) -> int:
+        r"""
+        Convert a token (str) to a corresponding index (int). AKA char-to-int or stoi
+
+        Unknow token (unk) will returned if token is not in this vocab
+
+        Exceptions:
+            KeyError: raised when token is not in this vocab and `unk` token is not set.
+        """
         try:
-            return self.stoi[s]
+            return self.stoi[token]
         except KeyError as e:
             if self.unk is not None:
                 return self.stoi[self.unk]
             raise e
 
-    def int2char(self, i: int) -> str:
+    def lookup_indices(self, tokens: List[str]) -> List[int]:
+        return list(map(self.lookup_index, tokens))
+
+    def lookup_token(self, index: int) -> str:
         try:
-            return self.itos[i]
+            return self.itos[index]
         except KeyError as e:
             if self.unk is not None:
                 return self.unk
             raise e
 
-    def onehot(self, tokens: Union[str, List[str]]) -> torch.Tensor:
-        if isinstance(tokens, str):
-            tokens = [tokens]
-        token_idx = list(map(self.char2int, tokens))
-        return F.one_hot(torch.tensor(token_idx), len(self))  # [T, V]
+    def lookup_tokens(self, indices: List[int]) -> List[str]:
+        return list(map(self.lookup_token, indices))
 
     @classmethod
     def from_json_stoi(cls, f, *args, **kwargs):
@@ -75,7 +80,7 @@ class CTCVocab(Vocab):
 
     @property
     def BLANK_IDX(self):
-        return self.char2int(self.blank)
+        return self.lookup_index(self.blank)
 
 
 class Seq2SeqVocab(Vocab):
@@ -102,7 +107,7 @@ class Seq2SeqVocab(Vocab):
 
     @property
     def SOS_IDX(self):
-        return self.char2int(self.__sos)
+        return self.lookup_index(self.__sos)
 
     @property
     def EOS(self):
@@ -110,7 +115,7 @@ class Seq2SeqVocab(Vocab):
 
     @property
     def EOS_IDX(self):
-        return self.char2int(self.__eos)
+        return self.lookup_index(self.__eos)
 
     @property
     def PAD(self):
@@ -118,4 +123,4 @@ class Seq2SeqVocab(Vocab):
 
     @property
     def PAD_IDX(self):
-        return self.char2int(self.__pad)
+        return self.lookup_index(self.__pad)

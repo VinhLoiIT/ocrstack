@@ -21,7 +21,7 @@ def text():
 @pytest.fixture()
 def input_with_sos_eos(vocab, text):
     text = [vocab.SOS] + list(text) + [vocab.EOS]
-    tensor = torch.tensor(list(map(vocab.char2int, text)))  # T
+    tensor = torch.tensor(vocab.lookup_indices(text))       # T
     tensor = F.one_hot(tensor, num_classes=len(vocab))      # T, V
     tensor = tensor.unsqueeze_(0)                           # 1, T, V
     return tensor

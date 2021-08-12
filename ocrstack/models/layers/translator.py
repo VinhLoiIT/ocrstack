@@ -54,7 +54,7 @@ def ctc_translate_raw(predicts, vocab):
     # type: (torch.Tensor, CTCVocab) -> Tuple[List[str], List[List[float]]]
     predicts = predicts.cpu()
     probs_, indices_ = predicts.max(dim=-1)
-    strs = [''.join(map(vocab.int2char, indices)) for indices in indices_]
+    strs = [''.join(vocab.lookup_tokens(indices)) for indices in indices_]
     return strs, probs_.tolist()
 
 
@@ -75,7 +75,7 @@ def ctc_translate(predicts, vocab):
         prob = [0.]
         probs.append(prob)
 
-    samples = [''.join(map(vocab.int2char, result)) for result in results]
+    samples = [''.join(vocab.lookup_tokens(result)) for result in results]
     return samples, probs
 
 
@@ -115,7 +115,7 @@ def seq2seq_translate(predicts: torch.Tensor,
     strings: List[str] = []
 
     for probs_, indices_, start, end in zip(probs.tolist(), indices.tolist(), sos_pos, eos_pos):
-        s = reduce_token.join(map(vocab.int2char, indices_[start:end]))
+        s = reduce_token.join(vocab.lookup_tokens(indices_[start:end]))
         p = probs_[start:end]
         strings.append(s)
         char_probs.append(p)
