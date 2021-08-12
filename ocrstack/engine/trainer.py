@@ -111,14 +111,28 @@ def validate_s2s(cfg: S2STrainConfig,
     if model.training:
         model.eval()
 
+    num_iter = len(val_loader)
+    log_interval = cfg.log_interval
+    if isinstance(log_interval, float):
+        assert 0 <= log_interval <= 1
+        log_interval = int(log_interval * num_iter)
+
     batch: Batch
-    for batch in val_loader:
+    for i, batch in enumerate(val_loader):
         batch = batch.to(cfg.device)
         loss, predict_strs = _validate_s2s_iteration(cfg, model, translator, batch)
 
         total_loss.add(loss * len(batch), len(batch))
         for metric in metrics.values():
             metric.update(predict_strs, batch.text_str)
+
+        if (i + 1) % log_interval == 0:
+            logger.info('Epoch [{:3d}] - [{:6.2f}%] val_loss = {:.4f} - {}'.format(
+                epoch + 1,
+                (i + 1) * 100 / num_iter,
+                total_loss.compute(),
+                ' - '.join([f'{k}: {v.compute():.4f}' for k, v in metrics.items()])
+            ))
 
     val_loss = total_loss.compute()
     out_metrics = {k: v.compute() for k, v in metrics.items()}
@@ -128,9 +142,11 @@ def validate_s2s(cfg: S2STrainConfig,
         for k, v in out_metrics.items():
             tb_writer.add_scalar(f'Validation/{k}', v, epoch)
 
-    logger.info(f'Epoch [{epoch:3d}] val_loss = {val_loss:.4f}')
-    for k, v in out_metrics.items():
-        logger.info(f'{k} = {v:.04f}')
+    logger.info('Epoch [{:3d}] - val_loss = {:.4f} - {}'.format(
+        epoch + 1,
+        val_loss,
+        ' - '.join([f'{k}: {v:.4f}' for k, v in out_metrics.items()])
+    ))
 
     for k, v in out_metrics.items():
         if k != 'ACC':
