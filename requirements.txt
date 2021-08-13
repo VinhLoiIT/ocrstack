@@ -2,5 +2,5 @@ editdistance
 numpy
 PyYAML
 Pillow
-https://download.pytorch.org/whl/cpu/torch-1.7.1%2Bcpu-cp38-cp38-linux_x86_64.whl
-https://download.pytorch.org/whl/cpu/torchvision-0.8.2%2Bcpu-cp38-cp38-linux_x86_64.whl
+torch==1.8.0+cpu
+torchvision==0.9.0+cpu
