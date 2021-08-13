@@ -16,8 +16,8 @@ class TransformerDecoder(nn.Module):
     '''
 
     def __init__(self,
-                 in_embed: nn.Module,
-                 out_embed: nn.Module,
+                 text_embed: nn.Module,
+                 fc: nn.Module,
                  transformer_layer,
                  sos_idx: int,
                  eos_idx: int,
@@ -25,8 +25,8 @@ class TransformerDecoder(nn.Module):
                  num_layers: int = 1,
                  layer_norm: Optional[nn.LayerNorm] = None):
         super(TransformerDecoder, self).__init__()
-        self.in_embed = in_embed
-        self.out_embed = out_embed
+        self.text_embed = text_embed
+        self.fc = fc
         self.layers = _get_clones(transformer_layer, num_layers)
         self.layer_norm = layer_norm
 
@@ -48,7 +48,7 @@ class TransformerDecoder(nn.Module):
         - logits: (B, T, V)
         '''
         tgt_key_padding_mask = (tgt == self.pad_idx)
-        tgt = self.in_embed(tgt)                    # [B, T, E]
+        tgt = self.text_embed(tgt)                    # [B, T, E]
         tgt_mask = generate_square_subsequent_mask(tgt.size(1)).unsqueeze(0).to(memory.device)
         memory_mask = None
 
@@ -59,7 +59,7 @@ class TransformerDecoder(nn.Module):
         if self.layer_norm is not None:
             out = self.layer_norm(out)
 
-        out = self.out_embed(out)                   # [B, T, V]
+        out = self.fc(out)                   # [B, T, V]
         return out
 
     @torch.jit.export
@@ -91,8 +91,8 @@ class TransformerDecoder(nn.Module):
 class AttentionRecurrentDecoder(nn.Module):
 
     def __init__(self,
-                 in_embed: nn.Module,
-                 out_embed: nn.Module,
+                 text_embed: nn.Module,
+                 fc: nn.Module,
                  recurrent_layer,
                  sos_idx: int,
                  eos_idx: int,
@@ -100,8 +100,8 @@ class AttentionRecurrentDecoder(nn.Module):
                  p_teacher_forcing: float = 1.):
         super(AttentionRecurrentDecoder, self).__init__()
 
-        self.in_embed = in_embed
-        self.out_embed = out_embed
+        self.text_embed = text_embed
+        self.fc = fc
 
         self.recurrent_layer = recurrent_layer
         self.p_teacher_forcing = p_teacher_forcing
@@ -120,21 +120,21 @@ class AttentionRecurrentDecoder(nn.Module):
         outputs: List[Tensor] = []
 
         prev_predict = torch.full((memory.size(0),), fill_value=self.sos_idx, dtype=torch.long, device=memory.device)
-        prev_predict = self.in_embed(prev_predict)
+        prev_predict = self.text_embed(prev_predict)
         prev_attn = None
         prev_state = None
 
         for t in range(tgt.size(1)):
             out, context, state = self.recurrent_layer(memory, prev_predict, prev_attn,
                                                        prev_state, memory_key_padding_mask)
-            output = self.out_embed(out)                                            # B, V
+            output = self.fc(out)                                            # B, V
             outputs.append(output)                                                  # [[B, V]]
 
             teacher_forcing = (torch.rand(1) < self.p_teacher_forcing).item()
             if teacher_forcing:
-                prev_predict = self.in_embed(tgt[:, t])
+                prev_predict = self.text_embed(tgt[:, t])
             else:
-                prev_predict = self.in_embed(output.argmax(-1))
+                prev_predict = self.text_embed(output.argmax(-1))
             prev_attn = context
             prev_state = state
 
@@ -148,7 +148,7 @@ class AttentionRecurrentDecoder(nn.Module):
         '''
 
         sos = torch.full((memory.size(0),), fill_value=self.sos_idx, dtype=torch.long, device=memory.device)
-        prev_predict = self.in_embed(sos)
+        prev_predict = self.text_embed(sos)
         prev_attn = None
         prev_state = None
 
@@ -158,9 +158,9 @@ class AttentionRecurrentDecoder(nn.Module):
         for t in range(max_length):
             out, context, state = self.recurrent_layer(memory, prev_predict, prev_attn,
                                                        prev_state, memory_key_padding_mask)
-            output = self.out_embed(out)                                # B, V
+            output = self.fc(out)                                # B, V
 
-            prev_predict = self.in_embed(output.argmax(-1))             # B, E
+            prev_predict = self.text_embed(output.argmax(-1))             # B, E
             prev_attn = context
             prev_state = state
 
