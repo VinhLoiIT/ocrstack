@@ -35,7 +35,7 @@ def test_transformer_decoder(max_length):
     decoder.eval()
     output = decoder.decode(src, max_length)
     assert output.size(0) == B
-    assert output.size(1) <= T + 1
+    assert output.size(1) <= max_length + 2
     assert output.size(2) == vocab_size
 
 
@@ -68,5 +68,5 @@ def test_attention_lstm_decoder_forward(max_length):
 
     predicts = model.decode(memory, T)
     assert predicts.size(0) == B
-    assert predicts.size(1) <= T + 1
+    assert predicts.size(1) <= max_length + 2
     assert predicts.size(2) == vocab_size

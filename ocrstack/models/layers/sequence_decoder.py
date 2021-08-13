@@ -69,7 +69,7 @@ class TransformerDecoder(nn.Module):
         sos_inputs = torch.full((memory.size(0), 1), self.sos_idx, dtype=torch.long, device=memory.device)
         inputs = sos_inputs
         end_flag = torch.zeros(memory.size(0), dtype=torch.bool, device=memory.device)
-        for _ in range(max_length):
+        for _ in range(max_length + 1):
             output = self.forward(memory, inputs, memory_key_padding_mask)  # [B, T, V]
             output = F.softmax(output[:, [-1]], dim=-1)                     # [B, 1, V]
             outputs.append(output)                                          # [[B, 1, V]]
@@ -155,7 +155,7 @@ class AttentionRecurrentDecoder(nn.Module):
         outputs: List[Tensor] = []
 
         end_flag = torch.zeros(memory.size(0), dtype=torch.bool, device=memory.device)
-        for t in range(max_length):
+        for t in range(max_length + 1):
             out, context, state = self.recurrent_layer(memory, prev_predict, prev_attn,
                                                        prev_state, memory_key_padding_mask)
             output = self.fc(out)                                # B, V
