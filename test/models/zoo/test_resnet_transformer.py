@@ -52,7 +52,7 @@ def test_resnet_transformer_decode(resnet_transformer, inputs):
     assert outputs.size(2) == 10
 
 
-def test_resnet_transformer_decode(script_resnet_transformer, inputs):
+def test_script_resnet_transformer_decode(script_resnet_transformer, inputs):
     images, mask, _ = inputs
     max_length = 7
     script_resnet_transformer.eval()
