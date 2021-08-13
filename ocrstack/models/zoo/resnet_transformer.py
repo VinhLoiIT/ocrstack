@@ -30,6 +30,7 @@ class ResNetTransformerCfg:
     pad_idx: int = 2
     decoder_num_layers: int = 1
     scale_grad_by_freq: bool = True
+    dropout: float = 0.1
     dim_feedforward: int = 2048
 
 
@@ -44,14 +45,15 @@ class ResNetTransformer(IS2SModel):
             ScaledDotProductAttention(embed_dim=cfg.embed_dim, num_heads=cfg.num_heads),
             ScaledDotProductAttention(embed_dim=cfg.embed_dim, num_heads=cfg.num_heads),
             embed_dim=cfg.embed_dim,
-            dim_feedforward=cfg.dim_feedforward
+            dim_feedforward=cfg.dim_feedforward,
+            dropout=cfg.dropout,
         )
         self.decoder = TransformerDecoder(self.text_embed, self.fc, decoder_layer,
                                           cfg.sos_idx, cfg.eos_idx, cfg.pad_idx, cfg.decoder_num_layers)
         self.cfg = cfg
 
     def build_text_embed(self, cfg: ResNetTransformerCfg):
-        in_embed = Embedding(cfg.vocab_size, cfg.embed_dim, cfg.pad_idx, cfg.scale_grad_by_freq)
+        in_embed = Embedding(cfg.vocab_size, cfg.embed_dim, cfg.pad_idx, cfg.scale_grad_by_freq, cfg.dropout)
         pos_encoding = PositionalEncoding1d(cfg.embed_dim, batch_first=True)
         return nn.Sequential(OrderedDict([
             ('in_embed', in_embed),
