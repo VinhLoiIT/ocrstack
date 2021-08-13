@@ -1,4 +1,4 @@
-pytorch_sphinx_theme
+sphinx-rtd-theme
 editdistance
 numpy
 PyYAML
