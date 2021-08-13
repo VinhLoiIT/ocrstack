@@ -1,2 +1,3 @@
-from .ocr import CERMeter, WERMeter, ACCMeter
 from .metric import AverageMeter
+from .ocr import (ACCMeter, GlobalCERMeter, GlobalWERMeter, NormCERMeter,
+                  NormWERMeter)

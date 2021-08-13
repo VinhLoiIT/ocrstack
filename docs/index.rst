@@ -22,6 +22,7 @@ API Reference
 
    modules/engine
    modules/data
+   modules/metrics
 
 Indices and tables
 ==================

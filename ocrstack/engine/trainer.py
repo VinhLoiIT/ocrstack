@@ -8,7 +8,8 @@ import torch
 from ocrstack.data.collate import Batch
 from ocrstack.data.vocab import ITranslator
 from ocrstack.metrics.metric import AverageMeter
-from ocrstack.metrics.ocr import ACCMeter, CERMeter, WERMeter
+from ocrstack.metrics.ocr import (ACCMeter, GlobalCERMeter, GlobalWERMeter,
+                                  NormCERMeter, NormWERMeter)
 from ocrstack.models.base import IS2SModel
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -101,10 +102,10 @@ def validate_s2s(cfg: S2STrainConfig,
 
     total_loss = AverageMeter()
     metrics = {
-        'CER': CERMeter(),
-        'NormCER': CERMeter(norm=True),
-        'WER': WERMeter(),
-        'NormWER': WERMeter(norm=True),
+        'CER': GlobalCERMeter(),
+        'NormCER': NormCERMeter(),
+        'WER': GlobalWERMeter(),
+        'NormWER': NormWERMeter(),
         'ACC': ACCMeter(),
     }  # type: Dict[str, AverageMeter]
 
