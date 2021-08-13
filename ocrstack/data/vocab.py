@@ -6,14 +6,12 @@ import torch
 
 class Vocab:
 
-    r'''
-    Base class for vocabulary representation.
+    r"""Base class for vocabulary representation.
 
     Arguments:
-    - stoi: string-to-index dict.
-    - unk: default for out-of-vocabulary token. It must be contained in `stoi`.
-    If `None`, `KeyError` exception will be raised. Default is `None`
-    '''
+        stoi: string-to-index dict.
+        unk: default token for the out-of-vocabulary token. It must be contained in `stoi`.
+    """
 
     def __init__(self,
                  stoi: Dict[str, int],
@@ -28,13 +26,16 @@ class Vocab:
         return len(self.stoi)
 
     def lookup_index(self, token: str) -> int:
-        r"""
-        Convert a token (str) to a corresponding index (int). AKA char-to-int or stoi
+        r"""Convert a token to its index.
 
-        Unknow token (unk) will returned if token is not in this vocab
+        Args:
+            token: a token to be converted.
 
-        Exceptions:
-            KeyError: raised when token is not in this vocab and `unk` token is not set.
+        Returns:
+            the index of `token`, or the index of `unk` if token is not in vocab.
+
+        Raise:
+            KeyError: raised when `token` is not in this vocab and `unk` token is not set.
         """
         try:
             return self.stoi[token]
@@ -44,9 +45,28 @@ class Vocab:
             raise e
 
     def lookup_indices(self, tokens: List[str]) -> List[int]:
+        r"""A convenient method to convert a list of tokens to their index.
+
+        Args:
+            tokens: list of tokens to be converted.
+
+        Returns:
+            the indices of tokens
+        """
         return list(map(self.lookup_index, tokens))
 
     def lookup_token(self, index: int) -> str:
+        r"""Convert an index to the corresponding token.
+
+        Args:
+            index: an index to be converted.
+
+        Returns:
+            the `token` corresponding to `index` or `unk` if token not in vocab.
+
+        Raise:
+            KeyError: raised when `index` is not in this vocab and `unk` is not set.
+        """
         try:
             return self.itos[index]
         except KeyError as e:
@@ -55,6 +75,14 @@ class Vocab:
             raise e
 
     def lookup_tokens(self, indices: List[int]) -> List[str]:
+        r"""A convenient method to convert indices to corresponding tokens.
+
+        Args:
+            indices: indices to be converted.
+
+        Returns:
+            the tokens of indices
+        """
         return list(map(self.lookup_token, indices))
 
     @classmethod
@@ -114,6 +142,19 @@ class CTCVocab(Vocab):
 
 
 class Seq2SeqVocab(Vocab):
+
+    r"""
+    This class provides convenient methods and special token access for sequence-to-sequence training approach.
+
+    To use this class, `sos`, `eos`, `pad` must be set and contained in `stoi`.
+
+    Args:
+        unk: Unknow token. This is used for out-of-vocabulary tokens. Default is `None`
+        sos: Start of sequence token. Default is `<s>`
+        eos: End of sequence token. Default is `</s>`
+        pad: Padding token. Default is `<p>`
+    """
+
     def __init__(self,
                  stoi: Dict[str, int],
                  unk: Optional[str] = None,
@@ -132,27 +173,45 @@ class Seq2SeqVocab(Vocab):
         self.__pad = pad
 
     @property
-    def SOS(self):
+    def SOS(self) -> str:
+        r"""
+        Shortcut for accessing the start of sequence token.
+        """
         return self.__sos
 
     @property
-    def SOS_IDX(self):
+    def SOS_IDX(self) -> int:
+        r"""
+        Shortcut for accessing the start of sequence index.
+        """
         return self.lookup_index(self.__sos)
 
     @property
-    def EOS(self):
+    def EOS(self) -> str:
+        r"""
+        Shortcut for accessing the end of sequence token.
+        """
         return self.__eos
 
     @property
-    def EOS_IDX(self):
+    def EOS_IDX(self) -> int:
+        r"""
+        Shortcut for accessing the end of sequence index.
+        """
         return self.lookup_index(self.__eos)
 
     @property
-    def PAD(self):
+    def PAD(self) -> str:
+        r"""
+        Shortcut for accessing the padding token.
+        """
         return self.__pad
 
     @property
-    def PAD_IDX(self):
+    def PAD_IDX(self) -> int:
+        r"""
+        Shortcut for accessing the padding index.
+        """
         return self.lookup_index(self.__pad)
 
     def translate(self,
@@ -162,11 +221,21 @@ class Seq2SeqVocab(Vocab):
                   keep_eos: bool = False,
                   keep_pad: bool = False
                   ) -> Tuple[List[str], List[List[float]]]:
-        '''
-        Arguments:
-        ----------
-        predicts: [B, T, V]
-        '''
+        r"""
+        Translate a prediction tensor to its corresponding strings
+
+        Args:
+            predicts: a tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size,
+                :math:`L` is the sequence length, and :math:`V` is the vocab size.
+            reduct_token: a token to concatenate over :math:`L` dim. Default is empty.
+            keep_sos: whether to keep the start of sequence token after translation. Default is False.
+            keep_eos: whether to keep the end of sequence token after translation. Default is False.
+            keep_pad: whether to keep the padding token after translation. Default is False.
+
+        Outputs:
+            - strings: a list of :math:`B` strings
+            - char_probs: a list of probabilities for each token in each string.
+        """
         predicts = predicts.cpu()
 
         probs, indices = predicts.max(dim=-1)                   # [B, T]
@@ -214,11 +283,12 @@ class CTCTranslator(ITranslator):
 
     def translate(self, predicts):
         # type: (torch.Tensor,) -> Tuple[List[str], List[List[float]]]
-        '''
-        Shapes:
-        -------
-        - predicts: (B, T, V)
-        '''
+        r"""Translate a prediction tensor arcording to CTC approach.
+
+        Args:
+            predicts: a tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size,
+                :math:`L` is the sequence length, and :math:`V` is the vocab size.
+        """
         return self.vocab.translate(predicts, self.return_raw)
 
 
@@ -234,9 +304,10 @@ class Seq2SeqTranslator(ITranslator):
 
     def translate(self, predicts):
         # type: (torch.Tensor,) -> Tuple[List[str], List[List[float]]]
-        '''
-        Shapes:
-        -------
-        - predicts: (B, T, V)
-        '''
+        r"""Translate a prediction tensor arcording to sequence-to-sequence approach.
+
+        Args:
+            predicts: a tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size,
+                :math:`L` is the sequence length, and :math:`V` is the vocab size.
+        """
         return self.vocab.translate(predicts, self.reduce_token, self.keep_sos, self.keep_eos, self.keep_pad)

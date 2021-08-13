@@ -60,3 +60,10 @@ html_theme = 'haiku'
 # html_static_path = ['_static']
 
 add_module_names = False
+
+autodoc_typehints = 'none'
+autodoc_member_order = 'bysource'
+
+napoleon_custom_sections = [
+    'Outputs',
+]
