@@ -82,7 +82,8 @@ class GlobalCERMeter(AverageMeter):
         GlobalCER = \frac{ \sum_{i=1}^{N} ED(\hat{y}_{i},y_{i}) } { \sum_{i=1}^{N} |y_{i}|}
 
     where :math:`N` is the number of samples of the dataset, :math:`ED` is the Edit Distance (or Levenshtein Distance)
-    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|` is the length of target tokens.
+    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|`
+    is the length of target tokens.
     """
 
     def update(self, predicts, targets):
@@ -106,7 +107,8 @@ class NormCERMeter(AverageMeter):
         NormCER = \frac{ 1 } {N} \times \sum_{i=1}^{N} \frac {ED(\hat{y}_{i},y_{i}) } {|y_{i}|}
 
     where :math:`N` is the number of samples of the dataset, :math:`ED` is the Edit Distance (or Levenshtein Distance)
-    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|` is the length of target tokens.
+    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|`
+    is the length of target tokens.
     """
 
     def update(self, predicts, targets):
@@ -130,7 +132,8 @@ class GlobalWERMeter(AverageMeter):
         NormWER = \frac{ 1 } {N} \times \sum_{i=1}^{N} \frac {ED(\hat{y}_{i},y_{i}) } {|y_{i}|}
 
     where :math:`N` is the number of samples of the dataset, :math:`ED` is the Edit Distance (or Levenshtein Distance)
-    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|` is the length of target tokens.
+    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|`
+    is the length of target tokens.
 
     Args:
         split_word_token: a token to split words in a text string.
@@ -162,7 +165,8 @@ class NormWERMeter(AverageMeter):
         NormWER = \frac{ 1 } {N} \times \sum_{i=1}^{N} \frac {ED(\hat{y}_{i},y_{i}) } {|y_{i}|}
 
     where :math:`N` is the number of samples of the dataset, :math:`ED` is the Edit Distance (or Levenshtein Distance)
-    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|` is the length of target tokens.
+    of each predict :math:`\hat{y_{i}}` and target :math:`y_{i}` pair, and :math:`|y_{i}|`
+    is the length of target tokens.
 
     Args:
         split_word_token: a token to split words in a text string.

@@ -2,7 +2,7 @@ import logging
 import queue
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 from ocrstack.data.collate import Batch
@@ -48,17 +48,6 @@ def _train_s2s_iteration(model: IS2SModel, optimizer: torch.optim.Optimizer, bat
     loss.backward()
     optimizer.step()
     return loss.item()
-
-
-def _validate_s2s_iteration(cfg: S2STrainConfig,
-                            model: IS2SModel,
-                            translator: ITranslator,
-                            batch: Batch
-                            ) -> Tuple[float, List[str]]:
-    loss = model.forward_batch(batch)
-    predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)
-    predict_strs = translator.translate(predicts)[0]
-    return loss.item(), predict_strs
 
 
 @torch.no_grad()
@@ -121,11 +110,15 @@ def validate_s2s(cfg: S2STrainConfig,
     batch: Batch
     for i, batch in enumerate(val_loader):
         batch = batch.to(cfg.device)
-        loss, predict_strs = _validate_s2s_iteration(cfg, model, translator, batch)
+        loss = model.forward_batch(batch)
+        predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)
 
-        total_loss.add(loss * len(batch), len(batch))
+        pred_tokens = translator.translate(predicts)[0]
+        tgt_tokens = translator.translate(batch.text)[0]
+
+        total_loss.add(loss.item() * len(batch), len(batch))
         for metric in metrics.values():
-            metric.update(predict_strs, batch.text_str)
+            metric.update(pred_tokens, tgt_tokens)
 
         if (i + 1) % log_interval == 0:
             logger.info('Epoch [{:3d}] - [{:6.2f}%] val_loss = {:.4f} - {}'.format(
@@ -246,7 +239,8 @@ def train_s2s(cfg: S2STrainConfig,
         logger.info('Run validation for 1 iteration')
         batch = next(iter(val_loader))
         batch = batch.to(cfg.device)
-        _validate_s2s_iteration(cfg, model, translator, batch)
+        model.forward_batch(batch)
+        model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)
         logger.info('Training DONE')
         return
 

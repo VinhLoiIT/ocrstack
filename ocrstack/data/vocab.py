@@ -2,6 +2,7 @@ import json
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
+import torch.nn.functional as F
 
 
 class Vocab:
@@ -239,10 +240,13 @@ class Seq2SeqVocab(Vocab):
         """
         predicts = predicts.cpu()
 
-        probs, indices = predicts.max(dim=-1)                   # [B, T]
+        if predicts.ndimension() == 2:                                # [B, L]
+            predicts = F.one_hot(predicts, len(self))           # [B, L, V]
 
-        sos_mask = indices == self.SOS_IDX                     # [B, T]
-        eos_mask = indices == self.EOS_IDX                     # [B, T]
+        probs, indices = predicts.max(dim=-1)                   # [B, L]
+
+        sos_mask = indices == self.SOS_IDX                      # [B, L]
+        eos_mask = indices == self.EOS_IDX                      # [B, L]
 
         sos_pos = sos_mask.max(-1)[1]                           # [B]
         eos_pos = eos_mask.max(-1)[1]                           # [B]
