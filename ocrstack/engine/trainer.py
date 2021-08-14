@@ -266,8 +266,8 @@ def train_s2s(cfg: S2STrainConfig,
         if (epoch + 1) % cfg.validate_steps == 0:
             model.eval()
             with torch.no_grad():
-                val_loss, val_metrics = validate_s2s(cfg, epoch + 1, model, translator, val_loader, tb_writer)
                 visualize_s2s(cfg, epoch + 1, model, translator, val_loader)
+                val_loss, val_metrics = validate_s2s(cfg, epoch + 1, model, translator, val_loader, tb_writer)
             model.train()
 
             if val_loss < best_loss:
