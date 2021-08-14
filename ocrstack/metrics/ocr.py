@@ -10,6 +10,7 @@ __all__ = [
     'GlobalWERMeter',
     'NormWERMeter',
     'ACCMeter',
+    'split_by_token',
     'compute_norm_cer',
     'compute_norm_wer',
     'compute_global_cer',
@@ -18,37 +19,58 @@ __all__ = [
 ]
 
 
-def compute_norm_cer(predicts, targets):
-    # type: (List[str], List[str]) -> List[float]
-    cers = [ed.distance(list(pred), list(tgt)) / len(tgt) for pred, tgt in zip(predicts, targets)]
+def split_by_token(tokens, split_token_index):
+    # type: (List[str], str) -> List[List[str]]
+    result = []
+    start_pos = None
+    for pos, token_index in enumerate(tokens):
+        if start_pos is None and token_index != split_token_index:
+            start_pos = pos
+            continue
+        if token_index == split_token_index and start_pos is not None:
+            result.append(tokens[start_pos: pos])
+            start_pos = None
+
+    if start_pos is not None:
+        result.append(tokens[start_pos:])
+
+    return result
+
+
+def compute_norm_cer(pred_tokens, tgt_tokens):
+    # type: (List[str], List[str]) -> float
+    cers = ed.distance(pred_tokens, tgt_tokens) / len(tgt_tokens)
     return cers
 
 
-def compute_global_cer(predicts, targets):
-    # type: (List[str], List[str]) -> Tuple[List[int], List[int]]
-    dist = [ed.distance(list(pred), list(tgt)) for pred, tgt in zip(predicts, targets)]
-    num_refs = [len(tgt) for tgt in targets]
+def compute_global_cer(pred_tokens, tgt_tokens):
+    # type: (List[str], List[str]) -> Tuple[int, int]
+    dist = ed.distance(pred_tokens, tgt_tokens)
+    num_refs = len(tgt_tokens)
     return dist, num_refs
 
 
-def compute_norm_wer(predicts, targets, split_token=' '):
-    # type: (List[str], List[str], str) -> List[float]
-    wers = [ed.distance(pred.split(split_token), tgt.split(split_token)) / len(tgt.split(split_token))
-            for pred, tgt in zip(predicts, targets)]
-    return wers
+def compute_norm_wer(pred_tokens, tgt_tokens, split_token=' '):
+    # type: (List[str], List[str], str) -> float
+    pred_words = [''.join(word_tokens) for word_tokens in split_by_token(pred_tokens, split_token)]
+    tgt_words = [''.join(word_tokens) for word_tokens in split_by_token(tgt_tokens, split_token)]
+    wer = ed.distance(pred_words, tgt_words) / len(tgt_words)
+    return wer
 
 
-def compute_global_wer(predicts, targets, split_token=' '):
-    # type: (List[str], List[str], str) -> Tuple[List[int], List[int]]
-    dist = [ed.distance(pred.split(split_token), tgt.split(split_token)) for pred, tgt in zip(predicts, targets)]
-    num_refs = [len(tgt.split(split_token)) for tgt in targets]
+def compute_global_wer(pred_tokens, tgt_tokens, split_token=' '):
+    # type: (List[str], List[str], str) -> Tuple[int, int]
+    pred_words = [''.join(word_tokens) for word_tokens in split_by_token(pred_tokens, split_token)]
+    tgt_words = [''.join(word_tokens) for word_tokens in split_by_token(tgt_tokens, split_token)]
+
+    dist = ed.distance(pred_words, tgt_words)
+    num_refs = len(tgt_words)
     return dist, num_refs
 
 
-def compute_acc(predicts, targets):
-    # type: (List[str], List[str]) -> List[float]
-    accs = [1.0 if pred == tgt else 0.0 for pred, tgt in zip(predicts, targets)]
-    return accs
+def compute_acc(pred_tokens, tgt_tokens):
+    # type: (List[str], List[str]) -> float
+    return 1.0 if pred_tokens == tgt_tokens else 0.0
 
 
 class GlobalCERMeter(AverageMeter):
@@ -64,14 +86,14 @@ class GlobalCERMeter(AverageMeter):
     """
 
     def update(self, predicts, targets):
-        # type: (List[str], List[str]) -> None
+        # type: (List[List[str]], List[List[str]]) -> None
         r"""Update Global CER
 
         Args:
-            predicts: List of predicted strings
-            targets: List of target strings
+            predicts: List of predicted tokens
+            targets: List of target tokens
         """
-        dist, num_refs = compute_global_cer(predicts, targets)
+        dist, num_refs = zip(*[compute_global_cer(predict, target) for predict, target in zip(predicts, targets)])
         self.add(sum(dist), sum(num_refs))
 
 
@@ -92,10 +114,10 @@ class NormCERMeter(AverageMeter):
         r"""Update Normalized CER
 
         Args:
-            predicts: List of predicted strings
-            targets: List of target strings
+            predicts: List of predicted tokens
+            targets: List of target tokens
         """
-        cers = compute_norm_cer(predicts, targets)
+        cers = [compute_norm_cer(predict, target) for predict, target in zip(predicts, targets)]
         self.add(sum(cers), len(cers))
 
 
@@ -123,10 +145,11 @@ class GlobalWERMeter(AverageMeter):
         r"""Update Global WER
 
         Args:
-            predicts: List of predicted strings
-            targets: List of target strings
+            predicts: List of predicted tokens
+            targets: List of target tokens
         """
-        dist, num_refs = compute_global_wer(predicts, targets, self.split_word_token)
+        dist, num_refs = zip(*[compute_global_wer(predict, target, self.split_word_token)
+                               for predict, target in zip(predicts, targets)])
         self.add(sum(dist), sum(num_refs))
 
 
@@ -154,10 +177,11 @@ class NormWERMeter(AverageMeter):
         r"""Update Normalized WER
 
         Args:
-            predicts: List of predicted strings
-            targets: List of target strings
+            predicts: List of predicted tokens
+            targets: List of target tokens
         """
-        wers = compute_norm_wer(predicts, targets, self.split_word_token)
+        wers = [compute_norm_wer(predict, target, self.split_word_token)
+                for predict, target in zip(predicts, targets)]
         self.add(sum(wers), len(wers))
 
 
@@ -178,8 +202,8 @@ class ACCMeter(AverageMeter):
         r"""Update ACC Metric
 
         Args:
-            predicts: List of predicted strings
-            targets: List of target strings
+            predicts: List of predicted tokens
+            targets: List of target tokens
         """
-        accs = compute_acc(predicts, targets)
+        accs = [compute_acc(predict, target) for predict, target in zip(predicts, targets)]
         self.add(sum(accs), len(accs))

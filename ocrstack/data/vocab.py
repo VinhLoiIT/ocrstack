@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 
@@ -216,25 +216,26 @@ class Seq2SeqVocab(Vocab):
 
     def translate(self,
                   predicts: torch.Tensor,
-                  reduce_token: str = '',
+                  reduce_token: Optional[str] = None,
                   keep_sos: bool = False,
                   keep_eos: bool = False,
                   keep_pad: bool = False
-                  ) -> Tuple[List[str], List[List[float]]]:
+                  ) -> Tuple[Union[List[str], List[List[str]]], List[List[float]]]:
         r"""
         Translate a prediction tensor to its corresponding strings
 
         Args:
             predicts: a tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size,
                 :math:`L` is the sequence length, and :math:`V` is the vocab size.
-            reduct_token: a token to concatenate over :math:`L` dim. Default is empty.
+            reduce_token: a token to concatenate over :math:`L` dim. *None* to not concat. Default is *None*.
             keep_sos: whether to keep the start of sequence token after translation. Default is False.
             keep_eos: whether to keep the end of sequence token after translation. Default is False.
             keep_pad: whether to keep the padding token after translation. Default is False.
 
         Outputs:
-            - strings: a list of :math:`B` strings
-            - char_probs: a list of probabilities for each token in each string.
+            - outs: a list of size :math:`B`, each item is a string if *reduce_token* is not *None*, or
+                a list of tokens
+            - token_probs: a list of probabilities for each token in each string.
         """
         predicts = predicts.cpu()
 
@@ -256,16 +257,19 @@ class Seq2SeqVocab(Vocab):
             eos_pos += 1
         eos_pos.masked_fill_(torch.bitwise_not(torch.any(eos_mask, dim=-1)), predicts.size(1))
 
-        char_probs: List[List[float]] = []
-        strings: List[str] = []
+        token_probs: List[List[float]] = []
+        outs: Union[List[str], List[List[str]]] = []
 
         for probs_, indices_, start, end in zip(probs.tolist(), indices.tolist(), sos_pos, eos_pos):
-            s = reduce_token.join(self.lookup_tokens(indices_[start:end]))
+            tokens = self.lookup_tokens(indices_[start:end])
+            if reduce_token is None:
+                outs.append(tokens)
+            else:
+                outs.append(reduce_token.join(tokens))
             p = probs_[start:end]
-            strings.append(s)
-            char_probs.append(p)
+            token_probs.append(p)
 
-        return strings, char_probs
+        return outs, token_probs
 
 
 class ITranslator:
@@ -303,7 +307,7 @@ class Seq2SeqTranslator(ITranslator):
         self.keep_pad = keep_pad
 
     def translate(self, predicts):
-        # type: (torch.Tensor,) -> Tuple[List[str], List[List[float]]]
+        # type: (torch.Tensor,) -> Tuple[Union[List[str], List[List[str]]], List[List[float]]]
         r"""Translate a prediction tensor arcording to sequence-to-sequence approach.
 
         Args:

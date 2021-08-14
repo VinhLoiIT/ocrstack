@@ -1,32 +1,52 @@
-import numpy as np
-from ocrstack.metrics.ocr import compute_global_cer, compute_norm_cer
+from ocrstack.metrics.ocr import (compute_acc, compute_global_cer,
+                                  compute_global_wer, compute_norm_cer,
+                                  compute_norm_wer, split_by_token)
+
+
+def test_split_by_token_normal():
+    assert split_by_token(['a', ' ', 'b'], ' ') == [['a'], ['b']]
+    assert split_by_token(['a', ' ', 'b', 'c'], ' ') == [['a'], ['b', 'c']]
+    assert split_by_token(['a', 'b', 'c'], ' ') == [['a', 'b', 'c']]
+
+
+def test_split_by_token_spaces():
+    # spaces on the right side
+    assert split_by_token(['a', ' ', 'b', ' '], ' ') == [['a'], ['b']]
+    assert split_by_token(['a', ' ', 'b', ' ', ' '], ' ') == [['a'], ['b']]
+
+    # spaces on the left side
+    assert split_by_token([' ', 'a', ' ', 'b'], ' ') == [['a'], ['b']]
+    assert split_by_token([' ', ' ', 'a', ' ', 'b'], ' ') == [['a'], ['b']]
+
+    # spaces inside
+    assert split_by_token(['a', ' ', ' ', 'b'], ' ') == [['a'], ['b']]
+
+    # spaces both sides
+    assert split_by_token([' ', 'a', ' ', 'b', ' '], ' ') == [['a'], ['b']]
+    assert split_by_token([' ', ' ', 'a', ' ', ' ', 'b', ' ', ' '], ' ') == [['a'], ['b']]
 
 
 def test_compute_norm_cer():
-    cers = compute_norm_cer([['a', 'b', 'c']], [['c', 'b', 'c']])
-    assert np.array(cers) == np.array([1 / 3])
-
-    cers = compute_norm_cer([['a', 'b', 'c']], [['c', 'b', 'c', 'e']])
-    assert (np.array(cers) == np.array([2 / 4])).all()
-
-    cers = compute_norm_cer([['a', 'b', 'c'], ['d', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
-    assert (np.array(cers) == np.array([1/3, 2/3])).all()
-
-    cers = compute_norm_cer([['a', 'b', 'c'], ['c', 'd', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
-    assert (np.array(cers) == np.array([1/3, 3/3])).all()
+    assert compute_norm_cer(['a', 'b', 'c'], ['c', 'b', 'c']) == (1 / 3)
+    assert compute_norm_cer(['a', 'b', 'c'], ['c', 'b', 'c', 'e']) == (2 / 4)
 
 
 def test_compute_global_cer():
-    def batch_cer(dist, num_ref):
-        return np.sum(dist) / np.sum(num_ref)
-    dist, num_ref = compute_global_cer([['a', 'b', 'c']], [['c', 'b', 'c']])
-    assert batch_cer(dist, num_ref) == 1 / 3
+    assert compute_global_cer(['a', 'b', 'c'], ['c', 'b', 'c']) == (1, 3)
+    assert compute_global_cer(['a', 'b', 'c'], ['c', 'b', 'c', 'e']) == (2, 4)
 
-    dist, num_ref = compute_global_cer([['a', 'b', 'c']], [['c', 'b', 'c', 'e']])
-    assert batch_cer(dist, num_ref) == 2 / 4
 
-    dist, num_ref = compute_global_cer([['a', 'b', 'c'], ['d', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
-    assert batch_cer(dist, num_ref) == (1 + 2) / 6
+def test_compute_norm_wer():
+    assert compute_norm_wer(['a', ' ', 'b', ' ', 'c'], ['c', ' ', 'b', 'a'], ' ') == 3 / 2
+    assert compute_norm_wer(['a', 'b', ' ', 'c'], ['a', 'b', ' ', 'c'], ' ') == 0
 
-    dist, num_ref = compute_global_cer([['a', 'b', 'c'], ['c', 'd', 'e', 'f']], [['c', 'b', 'c'], ['d', 'f', 'e']])
-    assert batch_cer(dist, num_ref) == (1 + 3) / 6
+
+def test_compute_global_wer():
+    assert compute_global_wer(['a', ' ', 'b', ' ', 'c'], ['c', ' ', 'b', 'a'], ' ') == (3, 2)
+    assert compute_global_wer(['a', 'b', ' ', 'c'], ['a', 'b', ' ', 'c'], ' ') == (0, 2)
+
+
+def test_compute_acc():
+    assert compute_acc(['a', ' ', 'b', 'c'], ['a', 'b', 'c']) == 0
+    assert compute_acc(['a', ' ', 'b', ' ', 'c'], ['c', 'b', 'a']) == 0
+    assert compute_acc(['a', ' ', 'b', ' ', 'c'], ['a', ' ', 'b', ' ', 'c']) == 1
