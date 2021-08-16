@@ -102,3 +102,22 @@ def test_norm_wer_meter():
     meter.update([['a', ' ', 'b', 'c'], ['d', 'e', 'f', ' ', 'j']],
                  [['a', ' ', 'b', 'c'], ['d', 'e']])
     assert meter.compute() == (2 / 1) / 3
+
+
+def test_wer_acc_meter():
+    norm_wer_meter = NormWERMeter()
+    global_wer_meter = GlobalWERMeter()
+    acc_meter = ACCMeter()
+
+    meters = [norm_wer_meter, global_wer_meter, acc_meter]
+    for meter in meters:
+        meter.update([['a', 'b', 'c']],
+                     [['a', 'b', 'c']])
+    assert abs(acc_meter.compute() - (1 - norm_wer_meter.compute())) < 1e-6
+    assert abs(acc_meter.compute() - (1 - global_wer_meter.compute())) < 1e-6
+
+    for meter in meters:
+        meter.update([['a', 'b', 'c'], ['d', 'e', 'f', 'j']],
+                     [['a', 'b', 'c'], ['d', 'e']])
+    assert abs(acc_meter.compute() - (1 - norm_wer_meter.compute())) < 1e-6
+    assert abs(acc_meter.compute() - (1 - global_wer_meter.compute())) < 1e-6
