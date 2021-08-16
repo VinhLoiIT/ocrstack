@@ -80,6 +80,35 @@ class OCRDataset(Dataset):
 
 
 class CSVDataset(Dataset):
+    r"""A convenient CSV-like dataset loader
+
+    Your directory might look like this:
+
+    .. code-block::
+
+        data/train_images/00001.png
+        data/train_images/00002.png
+        [...]
+        data/train_images/10000.png
+
+        data/train_split.csv
+
+    Args:
+        image_dir: a path to your image folder
+        csv_path: a path to your CSV file
+        image_transform: a callable to transform an image to tensor. Default is `None`
+        text_transform: a callable to transform a text string to tensor. Default is `None`
+        delimiter: delimiter to seperate columns in CSV file. Default is ','
+        encoding: CSV file encoding. Default is 'utf8'
+
+    Examples:
+        You could use this class as follows:
+
+        .. code-block:: python
+
+            dataset = CSVDataset('data/train_images',
+                                 'data/train_split.csv')
+    """
     def __init__(self,
                  image_dir: Union[Path, str],
                  csv_path: Union[Path, str],
