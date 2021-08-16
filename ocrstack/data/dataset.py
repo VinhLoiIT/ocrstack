@@ -1,49 +1,72 @@
 import logging
-import os
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
 __all__ = [
-    'OCRDataset',
+    'PairFileDataset',
     'CSVDataset',
     'DummyDataset',
-    'glob'
 ]
 
 
-def glob(folder: Union[Path, str], suffixes: List[str]) -> List[Path]:
-    if os.name != 'nt':
-        suffixes = suffixes + [p.upper() for p in suffixes]
-    suffixes = ['**/*.{}'.format(p) for p in suffixes]
+class PairFileDataset(Dataset):
+    r"""A convenient dataset loader for loading samples by pair
 
-    return sum([sorted(list(Path(folder).glob(p))) for p in suffixes], [])
+    Your directory might look like this:
 
+    .. code-block::
 
-class OCRDataset(Dataset):
+        data/train/00001.png
+        data/train/00001.txt
+        data/train/00002.png
+        data/train/00002.txt
+        [...]
+        data/train/10000.png
+        data/train/10000.txt
+
+        data/val/00001.png
+        data/val/00001.txt
+        data/val/00002.png
+        data/val/00002.txt
+        [...]
+        data/val/10000.png
+        data/val/10000.txt
+
+    Args:
+        image_dir: a path to your image directory.
+        image_pattern: a pattern for globing images. Default is `*.png`.
+        image_transform: a callable to transform an image to tensor. Default is `None`
+        text_transform: a callable to transform a text string to tensor. Default is `None`
+        text_file_suffix: the corresponding text file suffix. Default is "txt"
+        encoding: CSV file encoding. Default is "utf8"
+
+    Hints:
+        Since we use `pathlib` for path management, you might want to
+        pass :code:`image_dir="**/*.png"` for recursively glob images
+
+    Examples:
+        You could use this class as follows:
+
+        .. code-block:: python
+
+            dataset = PairFileDataset('data/train')
+    """
     def __init__(self,
-                 image_paths: Union[Path, str, List[Path], List[str]],
+                 image_dir: Union[Path, str],
+                 image_pattern: str = '*.png',
                  image_transform: Optional[Callable] = None,
                  text_transform: Optional[Callable] = None,
                  text_file_suffix: str = 'txt',
                  encoding: str = 'utf8',
-                 image_pattern: Optional[str] = None
                  ):
-        super(OCRDataset, self).__init__()
-        self.logger = logging.getLogger('OCRDataset')
-        if isinstance(image_paths, list):
-            assert len(image_paths) > 0, "Image Paths should not be empty"
-            image_paths = list(map(Path, image_paths))
-        elif isinstance(image_paths, (Path, str)):
-            assert image_pattern is not None, ('Image pattern must not be None when image_paths is str or Path.'
-                                               'Try passing *.png or *.jpg')
-            image_paths = sorted(list(Path(image_paths).glob(image_pattern)))
-        else:
-            raise NotImplementedError()
-        self.image_paths = image_paths
+        super(PairFileDataset, self).__init__()
+        self.logger = logging.getLogger('PairFileDataset')
+        self.image_dir = Path(image_dir)
+        self.image_paths = sorted(list(self.image_dir.glob(image_pattern)))
         self.image_transform = image_transform
         self.text_transform = text_transform
         self.text_file_suffix = text_file_suffix
