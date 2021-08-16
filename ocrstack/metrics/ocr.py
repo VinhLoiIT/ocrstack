@@ -112,7 +112,7 @@ class NormCERMeter(AverageMeter):
     """
 
     def update(self, predicts, targets):
-        # type: (List[str], List[str]) -> None
+        # type: (List[List[str]], List[List[str]]) -> None
         r"""Update Normalized CER
 
         Args:
@@ -144,7 +144,7 @@ class GlobalWERMeter(AverageMeter):
         self.split_word_token = split_word_token
 
     def update(self, predicts, targets):
-        # type: (List[str], List[str]) -> None
+        # type: (List[List[str]], List[List[str]]) -> None
         r"""Update Global WER
 
         Args:
@@ -177,7 +177,7 @@ class NormWERMeter(AverageMeter):
         self.split_word_token = split_word_token
 
     def update(self, predicts, targets):
-        # type: (List[str], List[str]) -> None
+        # type: (List[List[str]], List[List[str]]) -> None
         r"""Update Normalized WER
 
         Args:
@@ -202,7 +202,7 @@ class ACCMeter(AverageMeter):
     """
 
     def update(self, predicts, targets):
-        # type: (List[str], List[str]) -> None
+        # type: (List[List[str]], List[List[str]]) -> None
         r"""Update ACC Metric
 
         Args:
