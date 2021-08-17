@@ -6,19 +6,15 @@
 Welcome to ocrstack's documentation!
 ====================================
 
-Getting Started
-
 .. toctree::
-   :maxdepth: 1
+   :caption: Getting Started
 
    tutorials/custom_dataset
    tutorials/crnn
 
 
-API Reference
-
 .. toctree::
-   :maxdepth: 1
+   :caption: API documentation
 
    modules/engine
    modules/data
