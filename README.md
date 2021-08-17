@@ -9,7 +9,7 @@
 **Note**: This project is heavily under development. This means the API would be break at anytime.
 
 
-For documentation, please visit [ocrstack.readthedocs.io](ocrstack.readthedocs.io)
+For documentation, please visit [ocrstack.readthedocs.io](https://ocrstack.readthedocs.io)
 
 ## Install
 
