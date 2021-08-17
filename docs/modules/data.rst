@@ -1,10 +1,10 @@
-Data module
+ocrstack.data
 =========================
 
 This package provides classes and methods alongside with Pytorch supported ones.
 
 
-Dataset modules
+Dataset
 ---------------------------------
 
 .. automodule:: ocrstack.data.dataset
@@ -12,7 +12,7 @@ Dataset modules
     :undoc-members:
     :show-inheritance:
 
-Vocabulary modules
+Vocabulary
 ---------------------------------
 
 .. automodule:: ocrstack.data.vocab
