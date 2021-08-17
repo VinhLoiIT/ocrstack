@@ -5,7 +5,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from ocrstack.data.collate import Batch
-from ocrstack.models.base import IS2SModel
+from ocrstack.models.base import ITrainableS2S
 from ocrstack.models.layers.attention import ScaledDotProductAttention
 from ocrstack.models.layers.embedding import Embedding
 from ocrstack.models.layers.positional_encoding import (PositionalEncoding1d,
@@ -34,7 +34,7 @@ class ResNetTransformerCfg:
     dim_feedforward: int = 2048
 
 
-class ResNetTransformer(IS2SModel):
+class ResNetTransformer(ITrainableS2S):
     def __init__(self, cfg: ResNetTransformerCfg):
         super().__init__()
         self.image_embed = self.build_image_embed(cfg)

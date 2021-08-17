@@ -19,6 +19,7 @@ Welcome to ocrstack's documentation!
    modules/engine
    modules/data
    modules/metrics
+   modules/models
 
 Indices and tables
 ==================

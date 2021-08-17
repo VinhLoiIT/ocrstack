@@ -10,7 +10,7 @@ from ocrstack.data.vocab import ITranslator
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.metrics.ocr import (ACCMeter, GlobalCERMeter, GlobalWERMeter,
                                   NormCERMeter, NormWERMeter)
-from ocrstack.models.base import IS2SModel
+from ocrstack.models.base import ITrainableS2S
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -42,7 +42,7 @@ class S2STrainConfig:
     seed: int = 0
 
 
-def _train_s2s_iteration(model: IS2SModel, optimizer: torch.optim.Optimizer, batch: Batch) -> float:
+def _train_s2s_iteration(model: ITrainableS2S, optimizer: torch.optim.Optimizer, batch: Batch) -> float:
     optimizer.zero_grad()
     loss = model.forward_batch(batch)
     loss.backward()
@@ -53,7 +53,7 @@ def _train_s2s_iteration(model: IS2SModel, optimizer: torch.optim.Optimizer, bat
 @torch.no_grad()
 def visualize_s2s(cfg: S2STrainConfig,
                   epoch: int,
-                  model: IS2SModel,
+                  model: ITrainableS2S,
                   translator: ITranslator,
                   val_loader: DataLoader):
     logger = logging.getLogger('Visualizing')
@@ -83,7 +83,7 @@ def visualize_s2s(cfg: S2STrainConfig,
 @torch.no_grad()
 def validate_s2s(cfg: S2STrainConfig,
                  epoch: int,
-                 model: IS2SModel,
+                 model: ITrainableS2S,
                  translator: ITranslator,
                  val_loader: DataLoader,
                  tb_writer: Optional[SummaryWriter] = None) -> Tuple[float, Dict[str, float]]:
@@ -151,7 +151,7 @@ def validate_s2s(cfg: S2STrainConfig,
 
 def train_s2s_epoch(cfg: S2STrainConfig,
                     epoch: int,
-                    model: IS2SModel,
+                    model: ITrainableS2S,
                     optimizer: torch.optim.Optimizer,
                     train_loader: DataLoader,
                     tb_writer: Optional[SummaryWriter] = None):
@@ -199,7 +199,7 @@ def train_s2s_epoch(cfg: S2STrainConfig,
 
 
 def train_s2s(cfg: S2STrainConfig,
-              model: IS2SModel,
+              model: ITrainableS2S,
               optimizer: torch.optim.Optimizer,
               train_loader: DataLoader,
               val_loader: DataLoader,
