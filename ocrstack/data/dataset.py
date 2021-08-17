@@ -42,18 +42,23 @@ class PairFileDataset(Dataset):
         image_transform: a callable to transform an image to tensor. Default is `None`
         text_transform: a callable to transform a text string to tensor. Default is `None`
         text_file_suffix: the corresponding text file suffix. Default is "txt"
-        encoding: CSV file encoding. Default is "utf8"
+        encoding: text file encoding. Default is "utf8"
 
-    Hints:
+    Hint:
         Since we use `pathlib` for path management, you might want to
         pass :code:`image_dir="**/*.png"` for recursively glob images
+
+    Note:
+        This class only support one-line text files. If your text file has multiple lines, you
+        should write your own dataset class.
 
     Examples:
         You could use this class as follows:
 
         .. code-block:: python
 
-            dataset = PairFileDataset('data/train')
+            train_data = PairFileDataset('data/train')
+            val_data = PairFileDataset('data/val')
     """
     def __init__(self,
                  image_dir: Union[Path, str],
