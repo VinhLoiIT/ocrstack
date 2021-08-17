@@ -1,15 +1,16 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ocrstack.config.config import Config
+from ocrstack.models.base import IS2SDecode
 from torch import Tensor
 
 from ..utils import generate_square_subsequent_mask
 
 
-class TransformerDecoder(nn.Module):
+class TransformerDecoder(nn.Module, IS2SDecode):
 
     '''
     This class adapts `nn.TransformerDecoder` class to the stack
@@ -63,29 +64,65 @@ class TransformerDecoder(nn.Module):
         return out
 
     @torch.jit.export
-    def decode(self, memory, max_length, memory_key_padding_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tensor
-        outputs: List[Tensor] = []
-        sos_inputs = torch.full((memory.size(0), 1), self.sos_idx, dtype=torch.long, device=memory.device)
-        inputs = sos_inputs
-        end_flag = torch.zeros(memory.size(0), dtype=torch.bool, device=memory.device)
-        for _ in range(max_length + 1):
-            output = self.forward(memory, inputs, memory_key_padding_mask)  # [B, T, V]
-            output = F.softmax(output[:, [-1]], dim=-1)                     # [B, 1, V]
-            outputs.append(output)                                          # [[B, 1, V]]
-            output = output.argmax(-1, keepdim=False)                       # [B, 1]
-            inputs = torch.cat((inputs, output), dim=1)                     # [B, T + 1]
+    def decode_greedy(self, memory, max_length, memory_key_padding_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        batch_size = memory.size(0)
+        sos_inputs = torch.full((batch_size, 1), self.sos_idx, dtype=torch.long, device=memory.device)  # [B, 1]
+        scores = torch.zeros((batch_size, 1))                                                           # [B, 1]
 
-            # set flag for early break
-            output = output.squeeze(1)                                      # [B]
-            current_end = output == self.eos_idx                            # [B]
-            end_flag |= current_end
+        inputs = sos_inputs                                                                             # [B, T=1]
+        end_flag = torch.zeros(batch_size, dtype=torch.bool, device=memory.device)                      # [B]
+        for _ in range(max_length + 1):
+            output = self.forward(memory, inputs, memory_key_padding_mask)                              # [B, T, V]
+            output = F.log_softmax(output[:, [-1]], dim=-1)                                             # [B, 1, V]
+            score, index = output.max(dim=-1)                                                           # [B, 1]
+            scores = scores + score                                                                     # [B, 1]
+            inputs = torch.cat((inputs, index), dim=1)                                                  # [B, T+1]
+
+            # early break
+            end_flag = end_flag | (index == self.eos_idx)                                               # [B]
             if end_flag.all():
                 break
 
-        sos_inputs = F.one_hot(sos_inputs, outputs[-1].size(-1))
-        outputs.insert(0, sos_inputs)
-        return torch.cat(outputs, dim=1)                                    # [B, T, V]
+        inputs = inputs.unsqueeze(1)                                                                    # [B, 1, T+1]
+        return inputs, torch.exp(scores)
+
+    @torch.jit.export
+    def decode_beamsearch(self, memory, max_length, beamsize, memory_key_padding_mask=None):
+        # type: (Tensor, int, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        batch_size = memory.size(0)
+        sos_inputs = torch.full((batch_size, beamsize, 1), self.sos_idx,
+                                dtype=torch.long, device=memory.device)                 # [B, K, L=1]
+
+        scores = torch.zeros((batch_size, beamsize))                                    # [B, K]
+
+        end_flag = torch.zeros((batch_size * beamsize), dtype=torch.bool,
+                               device=memory.device)                                    # [B * K]
+
+        inputs = sos_inputs                                                             # [B, K, L=1]
+        for _ in range(max_length + 1):
+            beam_log_probs = []
+            for beam in range(beamsize):
+                beam_inputs = inputs[:, beam]                                           # [B, L]
+                outputs = self.forward(memory, beam_inputs, memory_key_padding_mask)    # [B, L, V]
+                outputs = outputs[:, [-1]]                                              # [B, 1, V]
+                log_probs = F.log_softmax(outputs, dim=-1)                              # [B, 1, V]
+                beam_log_probs.append(log_probs)                                        # [[B, 1, V]]
+
+            beam_log_probs = torch.cat(beam_log_probs, dim=1)                           # [B, K, V]
+            scores = scores.unsqueeze(-1) + beam_log_probs                              # [B, K, V]
+            scores = scores.view(batch_size, -1)                                        # [B, K * V]
+            scores, indices = torch.topk(scores, k=beamsize, dim=-1)                    # [B, K]
+            indices = indices % beam_log_probs.size(-1)                                 # [B, K]
+            inputs = torch.cat((inputs, indices.unsqueeze(-1)), dim=-1)                 # [B, K, L+1]
+
+            # early break
+            indices = indices.view(-1)                                                  # [B * K]
+            end_flag = (indices == self.eos_idx) | end_flag                             # [B * K]
+            if end_flag.all():
+                break
+
+        return inputs, torch.exp(scores)
 
 
 class AttentionRecurrentDecoder(nn.Module):
@@ -141,7 +178,7 @@ class AttentionRecurrentDecoder(nn.Module):
         return torch.stack(outputs, dim=1)
 
     @torch.jit.export
-    def decode(self, memory, max_length, memory_key_padding_mask=None) -> Tensor:
+    def decode(self, memory, max_length, memory_key_padding_mask=None):
         # type: (Tensor, int, Optional[Tensor]) -> Tensor
         '''
         memory: (B, T, E)
