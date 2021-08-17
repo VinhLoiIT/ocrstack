@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 from ocrstack.data.collate import Batch
 from torch import Tensor
@@ -40,7 +40,7 @@ class IS2SDecode:
     """
 
     def decode_greedy(self, images, max_length, image_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tensor
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         r"""Greedy Sequence-To-Sequence decoding
 
         In fact, it behaves like beamsearch decoding where :code:`beamsize=1` but faster since it does
@@ -52,14 +52,17 @@ class IS2SDecode:
             image_mask: a tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
 
         Return:
-            a prediction tensor of shape :math:`(B, L + 2, V)` where :math:`B` is the batch size, :math:`L` is
-            the `max_length`, and :math:`V` is the vocabulary size to present the probabilities of each class. It
-            should contain both `sos` and `eos` signals.
+            a 2-element tuple containing prediction indices and probabilities.
+
+            - **indices**: a tensor of shape :math:`(B, L + 2)` where :math:`B` is the batch size, :math:`L` is
+              the `max_length`. It should contain both `sos` and `eos` signals.
+            - **probs**: a tensor of shape :math:`(B,)` where :math:`B` is the batch size.
+
         """
         raise NotImplementedError()
 
     def decode_beamsearch(self, images, max_length, beamsize, image_mask=None):
-        # type: (Tensor, int, int, Optional[Tensor]) -> Tensor
+        # type: (Tensor, int, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         r"""Beamsearch Sequence-To-Sequence decoding
 
         Args:
@@ -69,9 +72,12 @@ class IS2SDecode:
             image_mask: a tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
 
         Return:
-            a prediction tensor of shape :math:`(B, L + 2, V)` where :math:`B` is the batch size, :math:`L` is
-            the `max_length`, and :math:`V` is the vocabulary size to present the probabilities of each class. It
-            should contain both `sos` and `eos` signals.
+            a 2-element tuple containing prediction indices and probabilities.
+
+            - **indices**: a tensor of shape :math:`(B, K, L + 2)` where :math:`B` is the batch size, :math:`K` is the
+              beamsize, and :math:`L` is the `max_length`. It should contain both `sos` and `eos` signals.
+            - **probs**: a tensor of shape :math:`(B, K)` where :math:`B` is the batch size, :math:`K` is the beamsize.
+
         """
         raise NotImplementedError()
 
@@ -86,7 +92,7 @@ class ICTCDecode:
     """
 
     def decode_greedy(self, images, image_mask=None):
-        # type: (Tensor, Optional[Tensor]) -> Tensor
+        # type: (Tensor, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         r"""Greedy CTC decoding
 
         In fact, it behaves like beamsearch decoding where :code:`beamsize=1` but faster since it does
@@ -97,14 +103,18 @@ class ICTCDecode:
             image_mask: a tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
 
         Return:
-            a prediction tensor of shape :math:`(B, L + 2, V)` where :math:`B` is the batch size, :math:`L` is
-            the number of steps including the `blank` character, and :math:`V` is the vocabulary size to
-            present the probabilities of each class.
+            a 2-element tuple containing prediction indices and probabilities. `1` is for conventional to beamsearch
+            decoding's outputs.
+
+            - **indices**: a tensor of shape :math:`(B, 1, L + 2)` where :math:`B` is the batch size, :math:`L` is
+              the `max_length`. It should contain both `sos` and `eos` signals.
+            - **probs**: a tensor of shape :math:`(B, 1)` where :math:`B` is the batch size.
+
         """
         raise NotImplementedError()
 
     def decode_beamsearch(self, images, beamsize, image_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tensor
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         r"""Beamsearch CTC decoding
 
         Args:
@@ -113,9 +123,12 @@ class ICTCDecode:
             image_mask: a Tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
 
         Return:
-            a prediction tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size, :math:`L` is
-            the number of steps including the `blank` character, and :math:`V` is the vocabulary size to
-            present the probabilities of each class.
+            a 2-element tuple containing prediction indices and probabilities.
+
+            - **indices**: a tensor of shape :math:`(B, K, L + 2)` where :math:`B` is the batch size, :math:`K` is the
+              beamsize, and :math:`L` is the `max_length`. It should contain both `sos` and `eos` signals.
+            - **probs**: a tensor of shape :math:`(B, K)` where :math:`B` is the batch size, :math:`K` is the beamsize.
+
         """
         raise NotImplementedError()
 

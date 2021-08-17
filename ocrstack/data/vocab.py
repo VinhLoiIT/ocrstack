@@ -216,34 +216,27 @@ class Seq2SeqVocab(Vocab):
         return self.lookup_index(self.__pad)
 
     def translate(self,
-                  predicts: torch.Tensor,
+                  indices: torch.Tensor,
                   reduce_token: Optional[str] = None,
                   keep_sos: bool = False,
                   keep_eos: bool = False,
                   keep_pad: bool = False
-                  ) -> Tuple[Union[List[str], List[List[str]]], List[List[float]]]:
+                  ) -> Union[List[str], List[List[str]]]:
         r"""
         Translate a prediction tensor to its corresponding strings
 
         Args:
-            predicts: a tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size,
-                :math:`L` is the sequence length, and :math:`V` is the vocab size.
+            indices: a tensor of shape :math:`(B, L)` where :math:`B` is the batch size,
+                :math:`L` is the sequence length.
             reduce_token: a token to concatenate over :math:`L` dim. *None* to not concat. Default is *None*.
-            keep_sos: whether to keep the start of sequence token after translation. Default is False.
-            keep_eos: whether to keep the end of sequence token after translation. Default is False.
-            keep_pad: whether to keep the padding token after translation. Default is False.
+            keep_sos: whether to keep the start of sequence token after translation. Default is `False`.
+            keep_eos: whether to keep the end of sequence token after translation. Default is `False`.
+            keep_pad: whether to keep the padding token after translation. Default is `False`.
 
-        Outputs:
-            - outs: a list of size :math:`B`, each item is a string if *reduce_token* is not *None*, or
-                a list of tokens
-            - token_probs: a list of probabilities for each token in each string.
+        Return:
+            a list of size :math:`B`, each item is a string if *reduce_token* is not *None*, or a list of tokens
         """
-        predicts = predicts.cpu()
-
-        if predicts.ndimension() == 2:                                # [B, L]
-            predicts = F.one_hot(predicts, len(self))           # [B, L, V]
-
-        probs, indices = predicts.max(dim=-1)                   # [B, L]
+        indices = indices.cpu()
 
         sos_mask = indices == self.SOS_IDX                      # [B, L]
         eos_mask = indices == self.EOS_IDX                      # [B, L]
@@ -259,21 +252,18 @@ class Seq2SeqVocab(Vocab):
 
         if keep_eos:
             eos_pos += 1
-        eos_pos.masked_fill_(torch.bitwise_not(torch.any(eos_mask, dim=-1)), predicts.size(1))
+        eos_pos.masked_fill_(torch.bitwise_not(torch.any(eos_mask, dim=-1)), indices.size(1))
 
-        token_probs: List[List[float]] = []
         outs: Union[List[str], List[List[str]]] = []
 
-        for probs_, indices_, start, end in zip(probs.tolist(), indices.tolist(), sos_pos, eos_pos):
+        for indices_, start, end in zip(indices.tolist(), sos_pos, eos_pos):
             tokens = self.lookup_tokens(indices_[start:end])
             if reduce_token is None:
                 outs.append(tokens)
             else:
                 outs.append(reduce_token.join(tokens))
-            p = probs_[start:end]
-            token_probs.append(p)
 
-        return outs, token_probs
+        return outs
 
 
 class ITranslator:
