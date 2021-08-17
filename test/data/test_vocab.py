@@ -83,29 +83,25 @@ def text():
 def input_with_sos_eos(vocab: Seq2SeqVocab, text):
     text = [vocab.SOS] + list(text) + [vocab.EOS]
     tensor = torch.tensor(vocab.lookup_indices(text))       # T
-    tensor = F.one_hot(tensor, num_classes=len(vocab))      # T, V
-    tensor = tensor.unsqueeze_(0)                           # 1, T, V
+    tensor = tensor.unsqueeze_(0)                           # 1, T
     return tensor
 
 
 def test_translate_seq2seq_sos_eos(vocab: Seq2SeqVocab, input_with_sos_eos, text):
-    assert input_with_sos_eos.shape == torch.Size([1, len(text) + 2, len(vocab)])
-    chars, probs = vocab.translate(input_with_sos_eos, '', keep_sos=True, keep_eos=True, keep_pad=False)
+    assert input_with_sos_eos.shape == torch.Size([1, len(text) + 2])
+    chars = vocab.translate(input_with_sos_eos, '', keep_sos=True, keep_eos=True, keep_pad=False)
     assert chars[0] == vocab.SOS + text + vocab.EOS
-    assert torch.tensor(probs).eq(1).all()
 
 
 def test_translate_seq2seq_sos_only(vocab: Seq2SeqVocab, input_with_sos_eos, text):
     inputs = input_with_sos_eos[:, :-1]
-    assert inputs.shape == torch.Size([1, len(text) + 1, len(vocab)])
-    chars, probs = vocab.translate(inputs, '', keep_sos=True, keep_eos=True, keep_pad=False)
+    assert inputs.shape == torch.Size([1, len(text) + 1])
+    chars = vocab.translate(inputs, '', keep_sos=True, keep_eos=True, keep_pad=False)
     assert chars[0] == vocab.SOS + text
-    assert torch.tensor(probs).eq(1).all()
 
 
 def test_translate_seq2seq_eos_only(vocab: Seq2SeqVocab, input_with_sos_eos, text):
     inputs = input_with_sos_eos[:, 1:]
-    assert inputs.shape == torch.Size([1, len(text) + 1, len(vocab)])
-    chars, probs = vocab.translate(inputs, '', keep_sos=True, keep_eos=True, keep_pad=False)
+    assert inputs.shape == torch.Size([1, len(text) + 1])
+    chars = vocab.translate(inputs, '', keep_sos=True, keep_eos=True, keep_pad=False)
     assert chars[0] == text + vocab.EOS
-    assert torch.tensor(probs).eq(1).all()

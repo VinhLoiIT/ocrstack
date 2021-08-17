@@ -46,10 +46,10 @@ def test_resnet_transformer_decode(resnet_transformer, inputs):
     max_length = 7
     resnet_transformer.eval()
     with torch.no_grad():
-        outputs = resnet_transformer.decode_greedy(images, max_length, mask)
+        outputs, scores = resnet_transformer.decode_greedy(images, max_length, mask)
     assert outputs.size(0) == 2
     assert outputs.size(1) <= max_length + 2
-    assert outputs.size(2) == 10
+    assert scores.shape == torch.Size((2,))
 
 
 def test_script_resnet_transformer_decode(script_resnet_transformer, inputs):
@@ -57,7 +57,7 @@ def test_script_resnet_transformer_decode(script_resnet_transformer, inputs):
     max_length = 7
     script_resnet_transformer.eval()
     with torch.no_grad():
-        outputs = script_resnet_transformer.decode_greedy(images, max_length, mask)
+        outputs, scores = script_resnet_transformer.decode_greedy(images, max_length, mask)
     assert outputs.size(0) == 2
     assert outputs.size(1) <= max_length + 2
-    assert outputs.size(2) == 10
+    assert scores.shape == torch.Size((2,))

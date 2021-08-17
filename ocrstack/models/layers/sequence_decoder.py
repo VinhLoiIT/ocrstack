@@ -68,7 +68,7 @@ class TransformerDecoder(nn.Module, IS2SDecode):
         # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         batch_size = memory.size(0)
         sos_inputs = torch.full((batch_size, 1), self.sos_idx, dtype=torch.long, device=memory.device)  # [B, 1]
-        scores = torch.zeros((batch_size, 1))                                                           # [B, 1]
+        scores = torch.zeros(batch_size,)                                                               # [B]
 
         inputs = sos_inputs                                                                             # [B, T=1]
         end_flag = torch.zeros(batch_size, dtype=torch.bool, device=memory.device)                      # [B]
@@ -76,7 +76,7 @@ class TransformerDecoder(nn.Module, IS2SDecode):
             output = self.forward(memory, inputs, memory_key_padding_mask)                              # [B, T, V]
             output = F.log_softmax(output[:, [-1]], dim=-1)                                             # [B, 1, V]
             score, index = output.max(dim=-1)                                                           # [B, 1]
-            scores = scores + score                                                                     # [B, 1]
+            scores = scores + score.squeeze(1)                                                          # [B]
             inputs = torch.cat((inputs, index), dim=1)                                                  # [B, T+1]
 
             # early break
@@ -84,8 +84,7 @@ class TransformerDecoder(nn.Module, IS2SDecode):
             if end_flag.all():
                 break
 
-        inputs = inputs.unsqueeze(1)                                                                    # [B, 1, T+1]
-        return inputs, torch.exp(scores)
+        return inputs, torch.exp(scores)                                                                # [B, T], [B]
 
     @torch.jit.export
     def decode_beamsearch(self, memory, max_length, beamsize, memory_key_padding_mask=None):
