@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -106,9 +106,17 @@ class ResNetTransformer(ITrainableS2S):
         return loss
 
     @torch.jit.export
-    def decode_greedy(self, images: Tensor, max_length: int, image_mask: Optional[Tensor] = None) -> Tensor:
+    def decode_greedy(self, images, max_length, image_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         memory = self.image_embed(images)
         B, C, H, W = memory.shape
         memory = memory.reshape(B, C, H*W).transpose(1, 2)  # B, S, E
-        predicts = self.decoder.decode(memory, max_length)
-        return predicts
+        return self.decoder.decode_greedy(memory, max_length)
+
+    @torch.jit.export
+    def decode_beamsearch(self, images, max_length, beamsize, image_mask=None):
+        # type: (Tensor, int, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        memory = self.image_embed(images)
+        B, C, H, W = memory.shape
+        memory = memory.reshape(B, C, H*W).transpose(1, 2)  # B, S, E
+        return self.decoder.decode_beamsearch(memory, max_length, beamsize)
