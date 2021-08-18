@@ -1,6 +1,5 @@
 import pytest
 import torch
-import torch.nn.functional as F
 from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab, Vocab
 
 
