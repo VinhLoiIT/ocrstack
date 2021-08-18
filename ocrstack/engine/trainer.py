@@ -73,8 +73,8 @@ def visualize_s2s(cfg: S2STrainConfig,
         if i == num_iter:
             break
         batch = batch.to(cfg.device)
-        predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)
-        predict_strs = translator.translate(predicts)[0]
+        predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)[0]
+        predict_strs = translator.translate(predicts)
 
         for predict_str, tgt in zip(predict_strs, batch.text_str):
             logger.info(f'Predict: {predict_str} ; Target: {tgt}')
@@ -111,10 +111,10 @@ def validate_s2s(cfg: S2STrainConfig,
     for i, batch in enumerate(val_loader):
         batch = batch.to(cfg.device)
         loss = model.forward_batch(batch)
-        predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)
+        predicts = model.decode_greedy(batch.images, cfg.max_length, batch.image_mask)[0]
 
-        pred_tokens = translator.translate(predicts)[0]
-        tgt_tokens = translator.translate(batch.text)[0]
+        pred_tokens = translator.translate(predicts)
+        tgt_tokens = translator.translate(batch.text)
 
         total_loss.add(loss.item() * len(batch), len(batch))
         for metric in metrics.values():
