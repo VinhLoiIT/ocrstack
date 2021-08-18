@@ -2,7 +2,6 @@ import json
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
-import torch.nn.functional as F
 
 
 class Vocab:
@@ -264,48 +263,3 @@ class Seq2SeqVocab(Vocab):
                 outs.append(reduce_token.join(tokens))
 
         return outs
-
-
-class ITranslator:
-
-    def translate(self, predicts: torch.Tensor) -> Tuple[List[str], List[List[float]]]:
-        raise NotImplementedError()
-
-
-class CTCTranslator(ITranslator):
-
-    def __init__(self, vocab, return_raw=False):
-        # type: (CTCVocab, bool) -> None
-        self.vocab = vocab
-        self.return_raw = return_raw
-
-    def translate(self, predicts):
-        # type: (torch.Tensor,) -> Tuple[List[str], List[List[float]]]
-        r"""Translate a prediction tensor arcording to CTC approach.
-
-        Args:
-            predicts: a tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size,
-                :math:`L` is the sequence length, and :math:`V` is the vocab size.
-        """
-        return self.vocab.translate(predicts, self.return_raw)
-
-
-class Seq2SeqTranslator(ITranslator):
-
-    def __init__(self, vocab, reduce_token, keep_sos=True, keep_eos=True, keep_pad=False):
-        # type: (Seq2SeqVocab, str, bool, bool, bool) -> None
-        self.vocab = vocab
-        self.reduce_token = reduce_token
-        self.keep_sos = keep_sos
-        self.keep_eos = keep_eos
-        self.keep_pad = keep_pad
-
-    def translate(self, predicts):
-        # type: (torch.Tensor,) -> Tuple[Union[List[str], List[List[str]]], List[List[float]]]
-        r"""Translate a prediction tensor arcording to sequence-to-sequence approach.
-
-        Args:
-            predicts: a tensor of shape :math:`(B, L, V)` where :math:`B` is the batch size,
-                :math:`L` is the sequence length, and :math:`V` is the vocab size.
-        """
-        return self.vocab.translate(predicts, self.reduce_token, self.keep_sos, self.keep_eos, self.keep_pad)
