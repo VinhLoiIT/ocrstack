@@ -68,7 +68,7 @@ class TransformerDecoder(nn.Module, IS2SDecode):
         # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         batch_size = memory.size(0)
         sos_inputs = torch.full((batch_size, 1), self.sos_idx, dtype=torch.long, device=memory.device)  # [B, 1]
-        scores = torch.zeros(batch_size,)                                                               # [B]
+        scores = torch.zeros(batch_size, device=memory.device)                                          # [B]
 
         inputs = sos_inputs                                                                             # [B, T=1]
         end_flag = torch.zeros(batch_size, dtype=torch.bool, device=memory.device)                      # [B]
@@ -86,42 +86,58 @@ class TransformerDecoder(nn.Module, IS2SDecode):
 
         return inputs, torch.exp(scores)                                                                # [B, T], [B]
 
-    @torch.jit.export
+    # @torch.jit.export
     def decode_beamsearch(self, memory, max_length, beamsize, memory_key_padding_mask=None):
         # type: (Tensor, int, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
         batch_size = memory.size(0)
-        sos_inputs = torch.full((batch_size, beamsize, 1), self.sos_idx,
-                                dtype=torch.long, device=memory.device)                 # [B, K, L=1]
+        sos_inputs = torch.full((batch_size, 1), self.sos_idx,
+                                dtype=torch.long, device=memory.device)                 # [B, L=1]
 
-        scores = torch.zeros((batch_size, beamsize))                                    # [B, K]
+        end_flag = torch.zeros(batch_size, dtype=torch.bool,
+                               device=memory.device)                                    # [B]
 
-        end_flag = torch.zeros((batch_size * beamsize), dtype=torch.bool,
-                               device=memory.device)                                    # [B * K]
+        inputs = (sos_inputs, torch.zeros(batch_size))                                                             # [B, K, L=1]
+        batch_decoded = []
+        all_candidates = [inputs]
 
-        inputs = sos_inputs                                                             # [B, K, L=1]
         for _ in range(max_length + 1):
-            beam_log_probs = []
-            for beam in range(beamsize):
-                beam_inputs = inputs[:, beam]                                           # [B, L]
-                outputs = self.forward(memory, beam_inputs, memory_key_padding_mask)    # [B, L, V]
-                outputs = outputs[:, [-1]]                                              # [B, 1, V]
-                log_probs = F.log_softmax(outputs, dim=-1)                              # [B, 1, V]
-                beam_log_probs.append(log_probs)                                        # [[B, 1, V]]
+            next_candidate = []
+            for (inputs, score) in all_candidates:
+                # inputs: [B, L]
+                # score: [B]
+                end_flag = end_flag | (inputs[:, -1] == self.eos_idx)
+                if end_flag.all():
+                    batch_decoded.append((inputs, score))
+                    continue
 
-            beam_log_probs = torch.cat(beam_log_probs, dim=1)                           # [B, K, V]
-            scores = scores.unsqueeze(-1) + beam_log_probs                              # [B, K, V]
-            scores = scores.view(batch_size, -1)                                        # [B, K * V]
-            scores, indices = torch.topk(scores, k=beamsize, dim=-1)                    # [B, K]
-            indices = indices % beam_log_probs.size(-1)                                 # [B, K]
-            inputs = torch.cat((inputs, indices.unsqueeze(-1)), dim=-1)                 # [B, K, L+1]
+                outputs = self.forward(memory, inputs, memory_key_padding_mask)         # [B, L, V]
+                outputs = outputs[:, -1]                                                # [B, V]
+                log_probs = F.log_softmax(outputs, dim=-1)                              # [B, V]
+                scores, indices = log_probs.topk(k=beamsize, dim=-1)                    # [B, K]
 
-            # early break
-            indices = indices.view(-1)                                                  # [B * K]
-            end_flag = (indices == self.eos_idx) | end_flag                             # [B * K]
-            if end_flag.all():
-                break
+                scores = scores.masked_fill(end_flag.unsqueeze(-1), 0.0)
+                indices = indices.masked_fill(end_flag.unsqueeze(-1), self.pad_idx)
 
-        return inputs, torch.exp(scores)
+                inputs = inputs.unsqueeze(-1)       # [B, L, 1]
+                indices = indices.unsqueeze(1)      # [B, 1, K]
+                inputs = torch.cat((inputs.repeat(1, 1, beamsize), indices), dim=1)     # [B, L, K]
+
+                scores = score + scores                                                 # [B, K]
+
+                for beam in range(beamsize):
+                    next_candidate.append((inputs[..., beam], scores[..., beam]))
+
+            next_candidate = sorted(next_candidate, key=lambda x: x[1], reverse=True)
+            all_candidates = next_candidate[:beamsize]
+
+        batch_decoded = batch_decoded + all_candidates
+        batch_decoded = sorted(batch_decoded, key=lambda x: x[1], reverse=True)[:beamsize]
+        batch, scores = zip(*batch_decoded)
+        batch = [x.transpose(0, 1) for x in batch]  # [L, 1]
+        batch = torch.nn.utils.rnn.pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)  # [K, L, 1]
+        batch = batch.permute(2, 0, 1)
+        scores = torch.stack(scores, dim=-1)
+        return batch, torch.exp(scores)
 
 
 class AttentionRecurrentDecoder(nn.Module):
