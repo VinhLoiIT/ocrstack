@@ -1,11 +1,10 @@
-import dataclasses
 import logging
 import queue
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
 import torch
-import yaml
+from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from ocrstack.data.vocab import Seq2SeqVocab
 from ocrstack.metrics.metric import AverageMeter
@@ -25,32 +24,39 @@ __all__ = [
 ]
 
 
-@dataclasses.dataclass()
-class S2STrainCfg:
-    n_epochs: int = 1000
-    learning_rate: int = 1e-4
-    batch_size: int = 2
-    num_workers: int = 2
-    device: str = 'cpu'
-    max_length: int = 1
-    num_iter_visualize: Union[int, float] = 0.05
-    log_interval: Union[int, float] = 0.1
-    validate_steps: int = 1
-    save_by: Optional[str] = 'val_loss'
-    save_top_k: int = 3
-    log_dir: str = 'runs'
-    seed: Optional[int] = None
-    reduction_char_visualize: Optional[str] = None
+class S2STrainCfg(Config):
 
-    def to_yaml(self, save_path: Path):
-        with open(save_path, 'wt') as f:
-            yaml.safe_dump(dataclasses.asdict(self), f)
-
-    @staticmethod
-    def from_yaml(yaml_path: Path) -> 'S2STrainCfg':
-        with open(yaml_path, 'rt') as f:
-            cfg = yaml.safe_load(f)
-            return S2STrainCfg(**cfg)
+    def __init__(self,
+        n_epochs: int = 1000,
+        learning_rate: int = 1e-4,
+        batch_size: int = 2,
+        num_workers: int = 2,
+        device: str = 'cpu',
+        max_length: int = 1,
+        num_iter_visualize: Union[int, float] = 0.05,
+        log_interval: Union[int, float] = 0.1,
+        validate_steps: int = 1,
+        save_by: Optional[str] = 'val_loss',
+        save_top_k: int = 3,
+        log_dir: str = 'runs',
+        seed: Optional[int] = None,
+        reduction_char_visualize: Optional[str] = None,
+    ):
+        super().__init__()
+        self.n_epochs = n_epochs
+        self.learning_rate = learning_rate
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.device = device
+        self.max_length = max_length
+        self.num_iter_visualize = num_iter_visualize
+        self.log_interval = log_interval
+        self.validate_steps = validate_steps
+        self.save_by = save_by
+        self.save_top_k = save_top_k
+        self.log_dir = log_dir
+        self.seed = seed
+        self.reduction_char_visualize = reduction_char_visualize
 
 
 class S2STrainer:
