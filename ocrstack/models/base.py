@@ -61,26 +61,6 @@ class IS2SDecode:
         """
         raise NotImplementedError()
 
-    def decode_beamsearch(self, images, max_length, beamsize, image_mask=None):
-        # type: (Tensor, int, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
-        r"""Beamsearch Sequence-To-Sequence decoding
-
-        Args:
-            images: a tensor of shape :math:`(B, C, H, W)` containing the images
-            max_length: a maximum length :math:`L` to decode
-            beamsize: the number of beam for beamsearch algorithms
-            image_mask: a tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
-
-        Return:
-            a 2-element tuple containing prediction indices and probabilities.
-
-            - **indices**: a tensor of shape :math:`(B, K, L + 2)` where :math:`B` is the batch size, :math:`K` is the
-              beamsize, and :math:`L` is the `max_length`. It should contain both `sos` and `eos` signals.
-            - **probs**: a tensor of shape :math:`(B, K)` where :math:`B` is the batch size, :math:`K` is the beamsize.
-
-        """
-        raise NotImplementedError()
-
 
 class ICTCDecode:
 

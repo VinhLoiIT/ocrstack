@@ -39,13 +39,6 @@ def test_transformer_decoder(max_length):
     assert output.size(1) <= max_length + 2
     assert scores.shape == torch.Size([B])
 
-    with torch.no_grad():
-        output, scores = decoder.decode_beamsearch(src, max_length, 3)
-    assert output.size(0) == B
-    assert output.size(1) == 3
-    assert output.size(2) <= max_length + 2
-    assert scores.shape == torch.Size([B, 3])
-
 
 @pytest.mark.parametrize('max_length', (1, 4))
 def test_attention_lstm_decoder_forward(max_length):
