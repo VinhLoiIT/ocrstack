@@ -1,10 +1,11 @@
+import dataclasses
 import logging
 import queue
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
 import torch
+import yaml
 from ocrstack.data.collate import Batch
 from ocrstack.data.vocab import Seq2SeqVocab
 from ocrstack.metrics.metric import AverageMeter
@@ -24,7 +25,7 @@ __all__ = [
 ]
 
 
-@dataclass()
+@dataclasses.dataclass()
 class S2STrainCfg:
     n_epochs: int = 1000
     learning_rate: int = 1e-4
@@ -40,6 +41,16 @@ class S2STrainCfg:
     log_dir: str = 'runs'
     seed: Optional[int] = None
     reduction_char_visualize: Optional[str] = None
+
+    def to_yaml(self, save_path: Path):
+        with open(save_path, 'wt') as f:
+            yaml.safe_dump(dataclasses.asdict(self), f)
+
+    @staticmethod
+    def from_yaml(yaml_path: Path) -> 'S2STrainCfg':
+        with open(yaml_path, 'rt') as f:
+            cfg = yaml.safe_load(f)
+            return S2STrainCfg(**cfg)
 
 
 class S2STrainer:
@@ -80,6 +91,8 @@ class S2STrainer:
         self.model.to(self.cfg.device)
 
         session_dir = Path(create_session_dir(self.cfg.log_dir))
+
+        self.cfg.to_yaml(session_dir.joinpath('trainer_config.yaml'))
 
         tensorboard_dir = session_dir.joinpath('tb_logs')
         tb_writer = SummaryWriter(tensorboard_dir)
