@@ -41,6 +41,7 @@ class S2STrainCfg(Config):
         log_dir: str = 'runs',
         seed: Optional[int] = None,
         reduction_char_visualize: Optional[str] = None,
+        is_debug: bool = False,
     ):
         super().__init__()
         self.n_epochs = n_epochs
@@ -57,6 +58,7 @@ class S2STrainCfg(Config):
         self.log_dir = log_dir
         self.seed = seed
         self.reduction_char_visualize = reduction_char_visualize
+        self.is_debug = is_debug
 
 
 class S2STrainer:
@@ -68,7 +70,7 @@ class S2STrainer:
                  train_loader: DataLoader,
                  val_loader: DataLoader,
                  lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-                 is_debug: bool = False):
+                 ):
         self.cfg = cfg
         self.model = model
         self.optimizer = optimizer
@@ -76,7 +78,6 @@ class S2STrainer:
         self.val_loader = val_loader
         self.vocab = vocab
         self.lr_scheduler = lr_scheduler
-        self.is_debug = is_debug
 
         setup_logging()
         self.logger = logging.getLogger('Trainer')
@@ -147,7 +148,7 @@ class S2STrainer:
                     )
                     running_loss_meter.reset()
 
-                if self.is_debug and i == 2:
+                if self.cfg.is_debug and i == 2:
                     break
 
             train_loss = total_loss_meter.compute()
@@ -197,13 +198,13 @@ class S2STrainer:
                     oldest_checkpoint.unlink()
                     ckpt_history.put(ckpt_path)
 
-            if self.is_debug and (epoch + 1) == 2:
+            if self.cfg.is_debug and (epoch + 1) == 2:
                 break
 
         tb_writer.close()
 
     def _visualize_epoch(self, epoch):
-        if self.is_debug:
+        if self.cfg.is_debug:
             num_iter = 1
         else:
             num_iter = _normalize_interval(self.val_loader, self.cfg.num_iter_visualize)
@@ -255,7 +256,7 @@ class S2STrainer:
                     ' - '.join([f'{k}: {v.compute():.4f}' for k, v in metrics.items()])
                 ))
 
-            if self.is_debug and i == 2:
+            if self.cfg.is_debug and i == 2:
                 break
 
         val_loss = total_loss_meter.compute()
