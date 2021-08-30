@@ -106,13 +106,13 @@ class S2STrainer:
 
         session_dir = Path(create_session_dir(self.cfg.log_dir))
 
-        self.cfg.to_yaml(session_dir.joinpath('trainer_config.yaml'))
+        self.cfg.to_yaml(session_dir / 'trainer_config.yaml')
         self.vocab.to_json(session_dir / "vocab.json")
 
-        tensorboard_dir = session_dir.joinpath('tb_logs')
+        tensorboard_dir = session_dir / 'tb_logs'
         tb_writer = SummaryWriter(tensorboard_dir)
 
-        ckpt_dir = session_dir.joinpath('ckpt')
+        ckpt_dir = session_dir / 'ckpt'
         ckpt_dir.mkdir(parents=True)
         ckpt_history: queue.Queue = queue.Queue(self.cfg.save_top_k)
 
@@ -165,7 +165,7 @@ class S2STrainer:
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
-            torch.save(self.state_dict(epoch), ckpt_dir.joinpath('latest.pth'))
+            torch.save(self.state_dict(epoch), ckpt_dir / 'latest.pth')
 
             if (epoch + 1) % self.cfg.validate_steps == 0:
                 self.model.eval()
@@ -203,7 +203,7 @@ class S2STrainer:
                     raise ValueError(f'Unknow save_by={self.cfg.save_by}')
 
                 best_metric = max(metric_val, best_metric)
-                ckpt_path = ckpt_dir.joinpath(f'{self.cfg.save_by}={metric_val}.pth')
+                ckpt_path = ckpt_dir / f'{self.cfg.save_by}={metric_val}.pth'
                 torch.save(self.state_dict(epoch + 1), ckpt_path)
 
                 try:

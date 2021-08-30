@@ -160,7 +160,7 @@ class CSVDataset(Dataset):
     def __getitem__(self, idx):
         image_name, raw_text = self.rows[idx]
 
-        image_path = self.image_dir.joinpath(image_name)
+        image_path = self.image_dir / image_name
         image = Image.open(image_path)
         if self.image_transform is not None:
             image = self.image_transform(image)
