@@ -26,7 +26,8 @@ __all__ = [
 
 class S2STrainCfg(Config):
 
-    def __init__(self,
+    def __init__(
+        self,
         n_epochs: int = 1000,
         learning_rate: int = 1e-4,
         batch_size: int = 2,
