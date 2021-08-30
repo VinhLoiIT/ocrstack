@@ -180,6 +180,7 @@ class S2STrainer:
                     count_early_stopping = 0
                     best_loss = val_loss
                 else:
+                    self.logger.info('Loss does not improve. Best loss = %.4f.', best_loss)
                     count_early_stopping += 1
                     if count_early_stopping >= self.cfg.num_val_early_stopping:
                         self.logger.info('Loss does not improve for %d times. Early stop.', count_early_stopping)
