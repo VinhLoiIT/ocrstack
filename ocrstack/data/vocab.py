@@ -85,6 +85,10 @@ class Vocab:
         """
         return list(map(self.lookup_token, indices))
 
+    def to_json(self, filepath):
+        with open(filepath, 'wt') as f:
+            json.dump(self.stoi, f, ensure_ascii=False, indent=2)
+
     @classmethod
     def from_json_stoi(cls, f, *args, **kwargs):
         stoi = json.load(f)

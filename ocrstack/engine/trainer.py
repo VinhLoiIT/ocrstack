@@ -106,6 +106,7 @@ class S2STrainer:
         session_dir = Path(create_session_dir(self.cfg.log_dir))
 
         self.cfg.to_yaml(session_dir.joinpath('trainer_config.yaml'))
+        self.vocab.to_json(session_dir / "vocab.json")
 
         tensorboard_dir = session_dir.joinpath('tb_logs')
         tb_writer = SummaryWriter(tensorboard_dir)
