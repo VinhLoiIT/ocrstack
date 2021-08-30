@@ -42,6 +42,8 @@ class S2STrainCfg(Config):
         seed: Optional[int] = None,
         reduction_char_visualize: Optional[str] = None,
         is_debug: bool = False,
+        enable_early_stopping: bool = False,
+        num_val_early_stopping: int = 10,
     ):
         super().__init__()
         self.n_epochs = n_epochs
@@ -59,6 +61,8 @@ class S2STrainCfg(Config):
         self.seed = seed
         self.reduction_char_visualize = reduction_char_visualize
         self.is_debug = is_debug
+        self.enable_early_stopping = enable_early_stopping
+        self.num_val_early_stopping = num_val_early_stopping
 
 
 class S2STrainer:
@@ -94,6 +98,8 @@ class S2STrainer:
     def train(self):
         best_loss = float('inf')
         best_metric = 0.0
+        count_early_stopping = 0
+
         self.model.train()
         self.model.to(self.cfg.device)
 
@@ -171,7 +177,13 @@ class S2STrainer:
                         'Found better validation loss. Improved from %.4f to %.4f',
                         best_loss, val_loss
                     )
+                    count_early_stopping = 0
                     best_loss = val_loss
+                else:
+                    count_early_stopping += 1
+                    if count_early_stopping >= self.cfg.num_val_early_stopping:
+                        self.logger.info('Loss does not improve for %d times. Early stop.', count_early_stopping)
+                        break
 
                 if self.cfg.save_by is None:
                     continue
