@@ -2,6 +2,7 @@ import logging
 import queue
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
+from pathlib import Path
 
 import torch
 from ocrstack.config.config import Config
@@ -90,6 +91,7 @@ class S2STrainer:
         self.vocab = vocab
         self.lr_scheduler = lr_scheduler
 
+        self.session_dir = create_session_dir(self.cfg.log_dir)
         setup_logging()
         self.logger = logging.getLogger('Trainer')
         self.state = S2STrainerState()
@@ -111,15 +113,13 @@ class S2STrainer:
         self.model.train()
         self.model.to(self.cfg.device)
 
-        session_dir = Path(create_session_dir(self.cfg.log_dir))
+        self.cfg.to_yaml(self.session_dir / 'trainer_config.yaml')
+        self.vocab.to_json(self.session_dir / "vocab.json")
 
-        self.cfg.to_yaml(session_dir / 'trainer_config.yaml')
-        self.vocab.to_json(session_dir / "vocab.json")
-
-        tensorboard_dir = session_dir / 'tb_logs'
+        tensorboard_dir = self.session_dir / 'tb_logs'
         tb_writer = SummaryWriter(tensorboard_dir)
 
-        ckpt_dir = session_dir / 'ckpt'
+        ckpt_dir = self.session_dir / 'ckpt'
         ckpt_dir.mkdir(parents=True)
         ckpt_history: queue.Queue = queue.Queue(self.cfg.save_top_k)
 
@@ -302,15 +302,14 @@ def setup_logging():
     logging.basicConfig(format='[%(levelname)s] %(name)s: %(message)s', level=logging.INFO)
 
 
-def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> str:
-    from datetime import datetime
-    from pathlib import Path
+def create_session_dir(root_dir: str, name: Optional[str] = None, exist_ok: bool = False) -> Path:
     if name is None:
+        from datetime import datetime
         name = datetime.now().strftime('%Y%m%d-%H%M%S')
 
-    log_dir = Path(root_dir, name)
-    log_dir.mkdir(parents=True, exist_ok=exist_ok)
-    return str(log_dir)
+    session_dir = Path(root_dir, name)
+    session_dir.mkdir(parents=True, exist_ok=exist_ok)
+    return session_dir
 
 
 def _normalize_interval(loader: DataLoader, interval: Union[int, float]) -> int:
