@@ -72,6 +72,13 @@ class S2STrainerState:
 
     def __init__(self) -> None:
         self.metrics = {}
+        self.epoch: int = 0
+
+    def to_dict(self) -> Dict:
+        return {
+            'metrics': self.metrics,
+            'epoch': self.epoch,
+        }
 
 
 class S2STrainer:
@@ -101,13 +108,13 @@ class S2STrainer:
                                                 self.cfg.save_by_type,
                                                 self.cfg.save_top_k)
 
-    def state_dict(self, epoch):
+    def state_dict(self):
         state_dict = {}
         state_dict['model'] = self.model.state_dict()
         state_dict['optimizer'] = self.optimizer.state_dict()
         if self.lr_scheduler is not None:
             state_dict['lr_scheduler'] = self.lr_scheduler.state_dict()
-        state_dict['epoch'] = epoch
+        state_dict['state'] = self.state.to_dict()
         return state_dict
 
     def train(self):
@@ -131,7 +138,7 @@ class S2STrainer:
         if self.cfg.seed is not None:
             set_seed(self.cfg.seed)
 
-        for epoch in range(self.cfg.n_epochs):
+        for epoch in range(self.state.epoch, self.cfg.n_epochs):
             total_loss_meter = AverageMeter()
             running_loss_meter = AverageMeter()
 
@@ -166,19 +173,20 @@ class S2STrainer:
                 if self.cfg.is_debug and i == 2:
                     break
 
+            self.state.epoch = epoch + 1
             self.state.metrics['train_loss'] = total_loss_meter.compute()
             self.state.metrics['train_running_loss'] = running_loss_meter.compute()
 
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
-            self.checkpoint_saver.save('latest.pth', self.state_dict(epoch + 1))
+            self.checkpoint_saver.save('latest.pth', self.state_dict())
 
-            if (epoch + 1) % self.cfg.validate_steps == 0:
+            if self.state.epoch % self.cfg.validate_steps == 0:
                 self.model.eval()
                 with torch.no_grad():
-                    self._visualize_epoch(epoch + 1)
-                    val_loss, val_metrics = self._validate_epoch(epoch + 1, tb_writer)
+                    self._visualize_epoch()
+                    val_loss, val_metrics = self._validate_epoch(tb_writer)
                 self.model.train()
 
                 self.state.metrics['val_loss'] = val_loss
@@ -203,7 +211,7 @@ class S2STrainer:
 
                 if self.cfg.save_by in self.state.metrics.keys():
                     metric_val = self.state.metrics[self.cfg.save_by]
-                    self.checkpoint_saver.update(metric_val, self.state_dict(epoch + 1))
+                    self.checkpoint_saver.update(metric_val, self.state_dict())
                 else:
                     raise ValueError(
                         f'Unknow save_by={self.cfg.save_by}. Available values: {list(self.state.metrics.keys())}')
@@ -213,12 +221,12 @@ class S2STrainer:
 
         tb_writer.close()
 
-    def _visualize_epoch(self, epoch):
+    def _visualize_epoch(self):
         if self.cfg.is_debug:
             num_iter = 1
         else:
             num_iter = _normalize_interval(self.val_loader, self.cfg.num_iter_visualize)
-        self.logger.info('Visualize Epoch [{:3d}]'.format(epoch))
+        self.logger.info('Visualize Epoch [%3d]', self.state.epoch)
 
         batch: Batch
         for i, batch in enumerate(self.val_loader):
@@ -228,9 +236,9 @@ class S2STrainer:
             indices = self.model.decode_greedy(batch.images, self.cfg.max_length, batch.image_mask)[0]
             predict_strs = self.vocab.translate(indices, self.cfg.reduction_char_visualize)
             for predict_str, tgt in zip(predict_strs, batch.text_str):
-                self.logger.info(f'Predict: {predict_str} ; Target: {tgt}')
+                self.logger.info('Predict: %s ; Target: %s', predict_str, tgt)
 
-    def _validate_epoch(self, epoch: int, tb_writer: SummaryWriter) -> Tuple[float, Dict[str, float]]:
+    def _validate_epoch(self, tb_writer: SummaryWriter) -> Tuple[float, Dict[str, float]]:
         logger = logging.getLogger('Validation')
 
         total_loss_meter = AverageMeter()
@@ -260,7 +268,7 @@ class S2STrainer:
 
             if (i + 1) % log_interval == 0:
                 logger.info('Epoch [{:3d}] - [{:6.2f}] val_loss = {:.4f} - {}'.format(
-                    epoch,
+                    self.state.epoch,
                     (i + 1) * 100 / num_iter,
                     total_loss_meter.compute(),
                     ' - '.join([f'{k}: {v.compute():.4f}' for k, v in metrics.items()])
@@ -272,12 +280,12 @@ class S2STrainer:
         val_loss = total_loss_meter.compute()
         out_metrics = {k: v.compute() for k, v in metrics.items()}
 
-        tb_writer.add_scalar('Validation/Loss', val_loss, epoch)
+        tb_writer.add_scalar('Validation/Loss', val_loss, self.state.epoch)
         for k, v in out_metrics.items():
-            tb_writer.add_scalar(f'Validation/{k}', v, epoch)
+            tb_writer.add_scalar(f'Validation/{k}', v, self.state.epoch)
 
         logger.info('Epoch [{:3d}] - val_loss = {:.4f} - {}'.format(
-            epoch,
+            self.state.epoch,
             val_loss,
             ' - '.join([f'{k}: {v:.4f}' for k, v in out_metrics.items()])
         ))
