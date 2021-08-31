@@ -66,6 +66,12 @@ class S2STrainCfg(Config):
         self.num_val_early_stopping = num_val_early_stopping
 
 
+class S2STrainerState:
+
+    def __init__(self) -> None:
+        self.metrics = {}
+
+
 class S2STrainer:
     def __init__(self,
                  cfg: S2STrainCfg,
@@ -86,6 +92,7 @@ class S2STrainer:
 
         setup_logging()
         self.logger = logging.getLogger('Trainer')
+        self.state = S2STrainerState()
 
     def state_dict(self, epoch):
         state_dict = {}
@@ -159,8 +166,8 @@ class S2STrainer:
                 if self.cfg.is_debug and i == 2:
                     break
 
-            train_loss = total_loss_meter.compute()
-            train_running_loss = running_loss_meter.compute()
+            self.state.metrics['train_loss'] = total_loss_meter.compute()
+            self.state.metrics['train_running_loss'] = running_loss_meter.compute()
 
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
@@ -173,6 +180,9 @@ class S2STrainer:
                     self._visualize_epoch(epoch + 1)
                     val_loss, val_metrics = self._validate_epoch(epoch + 1, tb_writer)
                 self.model.train()
+
+                self.state.metrics['val_loss'] = val_loss
+                self.state.metrics.update(val_metrics)
 
                 if val_loss < best_loss:
                     self.logger.info(
@@ -191,16 +201,10 @@ class S2STrainer:
                 if self.cfg.save_by is None:
                     continue
 
-                if self.cfg.save_by in val_metrics.keys():
-                    metric_val = val_metrics[self.cfg.save_by]
-                elif self.cfg.save_by == 'val_loss':
-                    metric_val = val_loss
-                elif self.cfg.save_by == 'train_loss':
-                    metric_val = train_loss
-                elif self.cfg.save_by == 'train_running_loss':
-                    metric_val = train_running_loss
+                if self.cfg.save_by in self.state.metrics.keys():
+                    metric_val = self.state.metrics[self.cfg.save_by]
                 else:
-                    raise ValueError(f'Unknow save_by={self.cfg.save_by}')
+                    raise ValueError(f'Unknow save_by={self.cfg.save_by}. Available values: {list(self.state.metrics.keys())}')
 
                 best_metric = max(metric_val, best_metric)
                 ckpt_path = ckpt_dir / f'{self.cfg.save_by}={metric_val}.pth'
