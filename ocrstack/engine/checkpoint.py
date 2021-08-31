@@ -1,98 +1,67 @@
+import logging
+import queue
 from pathlib import Path
-from typing import Dict
+from typing import Any
 
 import torch
-import queue
 
 
-class ICkptSaver:
+class CheckpointSaver:
 
-    def get_metric_value(self, metrics: Dict[str, Dict[str, float]]) -> float:
-        raise NotImplementedError()
+    def __init__(
+        self,
+        save_dir: Path,
+        metric_monitor: str,
+        type_monitor: str,
+        top: int,
+        prefix: str = '',
+    ) -> None:
 
-    def get_last_metric_value(self) -> float:
-        raise NotImplementedError()
-
-    def is_better(self, eval_metrics: Dict[str, Dict[str, float]]) -> bool:
-        pass
-
-    def save(self, session_dir, trainer_state, eval_metrics):
-        # type: (str, Dict, Dict[str, Dict[str, float]]) -> None
-        raise NotImplementedError()
-
-
-class NullCkpt(ICkptSaver):
-
-    def get_metric_value(self, metrics: Dict[str, Dict[str, float]]) -> float:
-        pass
-
-    def get_last_metric_value(self) -> float:
-        pass
-
-    def is_better(self, eval_metrics: Dict[str, Dict[str, float]]) -> bool:
-        return False
-
-    def save(self, session_dir, trainer_state, eval_metrics):
-        # type: (str, Dict, Dict[str, Dict[str, float]]) -> None
-        pass
-
-
-class MonitorCkpt(ICkptSaver):
-
-    def __init__(self, evaluator_name: str, metric_monitor: str, type_monitor: str, top: int) -> None:
-        super().__init__()
         self._history: queue.Queue = queue.Queue(top)
         self.metric_monitor = metric_monitor
         self.type_monitor = type_monitor
-        self.__last_metric_value = float('inf') if type_monitor == 'lower' else float('-inf')
-        self.evaluator_name = evaluator_name
 
-    def get_metric_value(self, metrics: Dict[str, Dict[str, float]]) -> float:
-        return metrics[self.evaluator_name][self.metric_monitor]
+        self.save_dir = save_dir
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.best_value = float('inf') if type_monitor == 'lower' else float('-inf')
+        self.prefix = prefix
+        self.logger = logging.getLogger('CheckpointSaver')
 
-    def get_last_metric_value(self) -> float:
-        return self.__last_metric_value
+    def update(self, new_value, to_save):
+        if self.is_better(new_value):
+            self.logger.info('Found better value. %s improved from %.4f to %.4f',
+                             self.metric_monitor,
+                             self.best_value,
+                             new_value)
+            self.best_value = new_value
 
-    def is_better(self, eval_metrics: Dict[str, Dict[str, float]]) -> bool:
-        if self.type_monitor == 'lower' and self.get_metric_value(eval_metrics) < self.get_last_metric_value():
+            filename = f'{self.prefix}{self.metric_monitor}={self.best_value:.06f}.pth'
+            checkpoint_path = self.save(filename, to_save)
+            self.logger.debug('Saved checkpoint to %s', str(checkpoint_path))
+
+            best_ckpt_path = self.save_dir / f'best_{self.metric_monitor}.pth'
+            best_ckpt_path.unlink(missing_ok=True)
+            best_ckpt_path.symlink_to(filename, target_is_directory=False)
+
+            try:
+                self._history.put_nowait(checkpoint_path)
+            except queue.Full:
+                oldest_checkpoint: Path = self._history.get_nowait()
+                oldest_checkpoint.unlink(missing_ok=True)
+                self._history.put_nowait(checkpoint_path)
+
+    def is_better(self, new_value: float) -> bool:
+        if self.type_monitor == 'lower' and new_value < self.best_value:
             return True
 
-        if self.type_monitor == 'higher' and self.get_metric_value(eval_metrics) > self.get_last_metric_value():
+        if self.type_monitor == 'higher' and new_value > self.best_value:
             return True
 
         return False
 
-    def save(self, session_dir, trainer_state, eval_metrics):
-        # type: (str, Dict, Dict[str, Dict[str, float]]) -> None
-        current_metric_value = self.get_metric_value(eval_metrics)
-        self.__last_metric_value = current_metric_value
-
-        filename = f'{self.evaluator_name}_{self.metric_monitor}={current_metric_value:.04f}.pth'
-        checkpoint_path = Path(session_dir, 'ckpt', filename)
-        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(trainer_state, checkpoint_path)
-
-        try:
-            self._history.put_nowait(checkpoint_path)
-        except queue.Full:
-            oldest_checkpoint = self._history.get_nowait()
-            oldest_checkpoint.unlink()
-            self._history.put_nowait(checkpoint_path)
-
-
-class LastCkpt(ICkptSaver):
-
-    def get_metric_value(self, metrics: Dict[str, Dict[str, float]]) -> float:
-        return None
-
-    def get_last_metric_value(self) -> float:
-        return None
-
-    def is_better(self, eval_metrics: Dict[str, Dict[str, float]]) -> bool:
-        return True
-
-    def save(self, session_dir: str, trainer_state: Dict, eval_metrics: Dict[str, Dict[str, float]]):
-        filename = 'last.pth'
-        checkpoint_path = Path(session_dir, 'ckpt', filename)
-        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(trainer_state, checkpoint_path)
+    def save(self, filename, to_save):
+        # type: (str, Any) -> Path
+        save_path = self.save_dir / filename
+        self.logger.debug('Saving checkpoint to %s', str(save_path))
+        torch.save(to_save, save_path)
+        return save_path

@@ -1,13 +1,12 @@
 import logging
-import queue
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
-from pathlib import Path
 
 import torch
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from ocrstack.data.vocab import Seq2SeqVocab
+from ocrstack.engine.checkpoint import CheckpointSaver
 from ocrstack.metrics.metric import AverageMeter
 from ocrstack.metrics.ocr import (ACCMeter, GlobalCERMeter, GlobalWERMeter,
                                   NormCERMeter, NormWERMeter)
@@ -39,6 +38,7 @@ class S2STrainCfg(Config):
         log_interval: Union[int, float] = 0.1,
         validate_steps: int = 1,
         save_by: Optional[str] = 'val_loss',
+        save_by_type: str = 'lower',
         save_top_k: int = 3,
         log_dir: str = 'runs',
         seed: Optional[int] = None,
@@ -58,6 +58,7 @@ class S2STrainCfg(Config):
         self.log_interval = log_interval
         self.validate_steps = validate_steps
         self.save_by = save_by
+        self.save_by_type = save_by_type
         self.save_top_k = save_top_k
         self.log_dir = log_dir
         self.seed = seed
@@ -95,6 +96,10 @@ class S2STrainer:
         setup_logging()
         self.logger = logging.getLogger('Trainer')
         self.state = S2STrainerState()
+        self.checkpoint_saver = CheckpointSaver(self.session_dir / 'ckpt',
+                                                self.cfg.save_by,
+                                                self.cfg.save_by_type,
+                                                self.cfg.save_top_k)
 
     def state_dict(self, epoch):
         state_dict = {}
@@ -107,7 +112,6 @@ class S2STrainer:
 
     def train(self):
         best_loss = float('inf')
-        best_metric = 0.0
         count_early_stopping = 0
 
         self.model.train()
@@ -118,10 +122,6 @@ class S2STrainer:
 
         tensorboard_dir = self.session_dir / 'tb_logs'
         tb_writer = SummaryWriter(tensorboard_dir)
-
-        ckpt_dir = self.session_dir / 'ckpt'
-        ckpt_dir.mkdir(parents=True)
-        ckpt_history: queue.Queue = queue.Queue(self.cfg.save_top_k)
 
         num_iter = len(self.train_loader)
         log_interval = _normalize_interval(self.train_loader, self.cfg.log_interval)
@@ -172,7 +172,7 @@ class S2STrainer:
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
-            torch.save(self.state_dict(epoch), ckpt_dir / 'latest.pth')
+            self.checkpoint_saver.save('latest.pth', self.state_dict(epoch + 1))
 
             if (epoch + 1) % self.cfg.validate_steps == 0:
                 self.model.eval()
@@ -203,19 +203,10 @@ class S2STrainer:
 
                 if self.cfg.save_by in self.state.metrics.keys():
                     metric_val = self.state.metrics[self.cfg.save_by]
+                    self.checkpoint_saver.update(metric_val, self.state_dict(epoch + 1))
                 else:
-                    raise ValueError(f'Unknow save_by={self.cfg.save_by}. Available values: {list(self.state.metrics.keys())}')
-
-                best_metric = max(metric_val, best_metric)
-                ckpt_path = ckpt_dir / f'{self.cfg.save_by}={metric_val}.pth'
-                torch.save(self.state_dict(epoch + 1), ckpt_path)
-
-                try:
-                    ckpt_history.put_nowait(ckpt_path)
-                except queue.Full:
-                    oldest_checkpoint = ckpt_history.get()
-                    oldest_checkpoint.unlink()
-                    ckpt_history.put(ckpt_path)
+                    raise ValueError(
+                        f'Unknow save_by={self.cfg.save_by}. Available values: {list(self.state.metrics.keys())}')
 
             if self.cfg.is_debug and (epoch + 1) == 2:
                 break
