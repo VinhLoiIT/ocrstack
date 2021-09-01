@@ -29,7 +29,7 @@ class S2STrainCfg(Config):
     def __init__(
         self,
         n_epochs: int = 1000,
-        learning_rate: int = 1e-4,
+        learning_rate: float = 1e-4,
         batch_size: int = 2,
         num_workers: int = 2,
         device: str = 'cpu',
