@@ -1,6 +1,6 @@
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, Dict, List, Tuple, Union, overload
+from typing import IO, Any, Dict, List, Tuple, Union
 from argparse import ArgumentParser, Namespace
 
 import yaml
