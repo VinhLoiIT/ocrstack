@@ -1,4 +1,5 @@
 import logging
+from argparse import ArgumentParser
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
@@ -25,6 +26,47 @@ __all__ = [
 
 
 class S2STrainCfg(Config):
+
+    r"""Configuration for S2STrainer
+
+    Args:
+        n_epochs: The number of training epochs
+
+        learning_rate: The learning rate for the optimizer
+
+        batch_size: The number of samples in a batch
+
+        num_workers: The number of workers in data loaders
+
+        device: The training device. It is one of :code:`["cuda", "cpu"]`
+
+        max_length: The max length to be used during the validation phase
+
+        num_iter_visualize: The number of iterations in the visualization phase
+
+        log_interval: The interval of logging
+
+        validate_steps: The number of epoch between two times validation
+
+        save_by: The metric to be used to save checkpoint
+
+        save_by_type: Type to compare how *better* metric in :code:`save_by`. It is one of
+            :code:`["lower", "higher"]`.
+
+        save_top_k: Keep only top :math:`k` checkpoints of :code:`save_by`
+
+        log_dir: The logging directory. It is used to store training results including
+            checkpoints, logs, hyper-parameters, etc.
+
+        seed: The random seed
+
+        reduction_char_visualize: The token to concatenate all tokens in a prediction.
+
+        is_debug: Fast run to make sure the pipeline is good.
+
+        enable_early_stopping: Whether to use EarlyStopping or not
+        num_val_early_stopping: The number of epochs to wait before stopping training.
+    """
 
     def __init__(
         self,
@@ -66,6 +108,43 @@ class S2STrainCfg(Config):
         self.is_debug = is_debug
         self.enable_early_stopping = enable_early_stopping
         self.num_val_early_stopping = num_val_early_stopping
+
+    def add_to_argparse(self, parser: ArgumentParser):
+        group = parser.add_argument_group('S2STrainCfg')
+        group.add_argument('--n_epochs', default=self.n_epochs,
+                           type=type(self.n_epochs))
+        group.add_argument('--learning_rate', default=self.learning_rate,
+                           type=type(self.learning_rate))
+        group.add_argument('--batch_size', default=self.batch_size,
+                           type=type(self.batch_size))
+        group.add_argument('--num_workers', default=self.num_workers,
+                           type=type(self.num_workers))
+        group.add_argument('--device', default=self.device, choices=('cuda', 'cpu'),
+                           type=type(self.device))
+        group.add_argument('--max_length', default=self.max_length,
+                           type=type(self.max_length))
+        group.add_argument('--num_iter_visualize', default=self.num_iter_visualize,
+                           type=type(self.num_iter_visualize))
+        group.add_argument('--log_interval', default=self.log_interval,
+                           type=type(self.log_interval))
+        group.add_argument('--validate_steps', default=self.validate_steps,
+                           type=type(self.validate_steps))
+        group.add_argument('--save_by', default=self.save_by, type=type(self.save_by))
+        group.add_argument('--save_by_type', default=self.save_by_type,
+                           type=type(self.save_by_type), choices=('lower', 'higher'))
+        group.add_argument('--save_top_k', default=self.save_top_k,
+                           type=type(self.save_top_k))
+        group.add_argument('--log_dir', default=self.log_dir,
+                           type=type(self.log_dir))
+        group.add_argument('--seed', default=self.seed, type=type(self.seed))
+        group.add_argument('--reduction_char_visualize', default=self.reduction_char_visualize,
+                           type=type(self.reduction_char_visualize))
+        group.add_argument('--is_debug', default=self.is_debug, action='store_true')
+        group.add_argument('--enable_early_stopping', default=self.enable_early_stopping,
+                           action='store_true')
+        group.add_argument('--num_val_early_stopping', default=self.num_val_early_stopping,
+                           type=type(self.num_val_early_stopping))
+        return parser
 
 
 class S2STrainerState:

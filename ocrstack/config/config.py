@@ -1,6 +1,7 @@
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, Dict, List, Tuple, Union
+from typing import IO, Any, Dict, List, Tuple, Union, overload
+from argparse import ArgumentParser, Namespace
 
 import yaml
 
@@ -58,17 +59,7 @@ class Config(dict):
             dump(f)
 
     def __str__(self) -> str:
-        def flatten(d, prefix='') -> List[Tuple[str, Any]]:
-            items = []
-            for k, v in d.items():
-                new_key = f'{prefix}.{k}' if prefix else k
-                if isinstance(v, dict):
-                    items.extend(flatten(v, new_key))
-                else:
-                    items.append((new_key, v))
-            return items
-
-        cfg_list = flatten(self, 'cfg')
+        cfg_list = _flatten_dict(self, 'cfg')
         max_length = max([len(item[0]) for item in cfg_list])
         with StringIO() as f:
             print('*' * (max_length * 2 + 3), file=f)
@@ -77,3 +68,20 @@ class Config(dict):
             print('*' * (max_length * 2 + 3), file=f)
             f.seek(0)
             return f.read()
+
+    def add_to_argparse(self, parser: ArgumentParser):
+        raise NotImplementedError()
+
+    def update_from_args(self, args: Namespace):
+        super().update(vars(args))
+
+
+def _flatten_dict(d, prefix='') -> List[Tuple[str, Any]]:
+    items = []
+    for k, v in d.items():
+        new_key = f'{prefix}.{k}' if prefix else k
+        if isinstance(v, dict):
+            items.extend(_flatten_dict(v, new_key))
+        else:
+            items.append((new_key, v))
+    return items
