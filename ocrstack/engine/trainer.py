@@ -31,39 +31,23 @@ class S2STrainCfg(Config):
 
     Args:
         n_epochs: The number of training epochs
-
         learning_rate: The learning rate for the optimizer
-
         batch_size: The number of samples in a batch
-
         num_workers: The number of workers in data loaders
-
         device: The training device. It is one of :code:`["cuda", "cpu"]`
-
         max_length: The max length to be used during the validation phase
-
         num_iter_visualize: The number of iterations in the visualization phase
-
         log_interval: The interval of logging
-
         validate_steps: The number of epoch between two times validation
-
         save_by: The metric to be used to save checkpoint
-
         save_by_type: Type to compare how *better* metric in :code:`save_by`. It is one of
             :code:`["lower", "higher"]`.
-
         save_top_k: Keep only top :math:`k` checkpoints of :code:`save_by`
-
         log_dir: The logging directory. It is used to store training results including
             checkpoints, logs, hyper-parameters, etc.
-
         seed: The random seed
-
         reduction_char_visualize: The token to concatenate all tokens in a prediction.
-
         is_debug: Fast run to make sure the pipeline is good.
-
         enable_early_stopping: Whether to use EarlyStopping or not
         num_val_early_stopping: The number of epochs to wait before stopping training.
     """
