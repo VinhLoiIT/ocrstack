@@ -1,6 +1,6 @@
 import pytest
 import torch
-from ocrstack.models.layers.attention import (AdditiveAttention, Attention,
+from ocrstack.ops.attention import (AdditiveAttention, Attention,
                                               DotProductAttention, ScaledDotProductAttention, attention)
 
 

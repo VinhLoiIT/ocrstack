@@ -1,5 +1,5 @@
 import torch
-from ocrstack.models.utils import generate_padding_mask_from_lengths, generate_square_subsequent_mask
+from ocrstack.ops.utils import generate_padding_mask_from_lengths, generate_square_subsequent_mask
 
 
 def test_generate_square_subsequent_mask():

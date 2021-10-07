@@ -1,11 +1,11 @@
 import pytest
 import torch
 import torch.nn as nn
-from ocrstack.models.layers.attention import DotProductAttention
-from ocrstack.models.layers.attention_lstm import AttentionLSTMCell
-from ocrstack.models.layers.sequence_decoder import (AttentionRecurrentDecoder,
+from ocrstack.ops.attention import DotProductAttention
+from ocrstack.ops.attention_lstm import AttentionLSTMCell
+from ocrstack.ops.sequence_decoder import (AttentionRecurrentDecoder,
                                                      TransformerDecoder)
-from ocrstack.models.layers.transformer import TransformerDecoderLayer
+from ocrstack.ops.transformer import TransformerDecoderLayer
 
 
 @pytest.mark.parametrize('max_length', (1, 4))

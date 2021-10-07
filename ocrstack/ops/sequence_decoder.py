@@ -3,11 +3,90 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ocrstack.config.config import Config
-from ocrstack.models.base import IS2SDecode
 from torch import Tensor
 
-from ..utils import generate_square_subsequent_mask
+from .utils import generate_square_subsequent_mask
+
+
+class IS2SDecode:
+
+    r"""This is a common interface for all models based on sequence-to-sequence approach.
+
+    The difference to :class:`ICTCDecode` is the `max_length` parameter in decode functions to
+    avoid infinitely decoding.
+    """
+
+    def decode_greedy(self, images, max_length, image_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        r"""Greedy Sequence-To-Sequence decoding
+
+        In fact, it behaves like beamsearch decoding where :code:`beamsize=1` but faster since it does
+        not populate a queue to store temporal decoding steps.
+
+        Args:
+            images: a tensor of shape :math:`(B, C, H, W)` containing the images
+            max_length: a maximum length :math:`L` to decode
+            image_mask: a tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
+
+        Return:
+            a 2-element tuple containing prediction indices and probabilities.
+
+            - **indices**: a tensor of shape :math:`(B, L + 2)` where :math:`B` is the batch size, :math:`L` is
+              the `max_length`. It should contain both `sos` and `eos` signals.
+            - **probs**: a tensor of shape :math:`(B,)` where :math:`B` is the batch size.
+
+        """
+        raise NotImplementedError()
+
+
+class ICTCDecode:
+
+    r"""This is a common interface for all models based on CTC approach.
+
+    The difference to :class:`IS2SDecode` is `max_length` parameter in decode functions to
+    avoid infinitely decoding.
+    """
+
+    def decode_greedy(self, images, image_mask=None):
+        # type: (Tensor, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        r"""Greedy CTC decoding
+
+        In fact, it behaves like beamsearch decoding where :code:`beamsize=1` but faster since it does
+        not populate a queue to store temporal decoding steps.
+
+        Args:
+            images: a tensor of shape :math:`(B, C, H, W)` containing the images
+            image_mask: a tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
+
+        Return:
+            a 2-element tuple containing prediction indices and probabilities. `1` is for conventional to beamsearch
+            decoding's outputs.
+
+            - **indices**: a tensor of shape :math:`(B, 1, L + 2)` where :math:`B` is the batch size, :math:`L` is
+              the `max_length`. It should contain both `sos` and `eos` signals.
+            - **probs**: a tensor of shape :math:`(B, 1)` where :math:`B` is the batch size.
+
+        """
+        raise NotImplementedError()
+
+    def decode_beamsearch(self, images, beamsize, image_mask=None):
+        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+        r"""Beamsearch CTC decoding
+
+        Args:
+            images: a Tensor of shape :math:`(B, C, H, W)` containing the images
+            beamsize: the number of beam for beamsearch algorithms
+            image_mask: a Tensor of shape :math:`(B, H, W)` to indicate images content within a batch.
+
+        Return:
+            a 2-element tuple containing prediction indices and probabilities.
+
+            - **indices**: a tensor of shape :math:`(B, K, L + 2)` where :math:`B` is the batch size, :math:`K` is the
+              beamsize, and :math:`L` is the `max_length`. It should contain both `sos` and `eos` signals.
+            - **probs**: a tensor of shape :math:`(B, K)` where :math:`B` is the batch size, :math:`K` is the beamsize.
+
+        """
+        raise NotImplementedError()
 
 
 class TransformerDecoder(nn.Module, IS2SDecode):
@@ -180,34 +259,41 @@ class AttentionRecurrentDecoder(nn.Module):
 
 
 class VisualLSTMDecoder(nn.Module):
-    def __init__(self, cfg: Config):
+    def __init__(self,
+                 input_size,
+                 hidden_size: int,
+                 vocab_size: int,
+                 num_layers: int,
+                 bias: bool = True,
+                 dropout: Optional[float] = None,
+                 bidirectional: bool = False):
         super().__init__()
         self.lstm = nn.LSTM(
-            cfg.MODEL.DECODER.INPUT_SIZE,
-            cfg.MODEL.DECODER.HIDDEN_SIZE,
-            cfg.MODEL.DECODER.NUM_LAYERS,
-            cfg.MODEL.DECODER.BIAS,
-            cfg.MODEL.DECODER.BATCH_FIRST,
-            cfg.MODEL.DECODER.DROPOUT,
-            cfg.MODEL.DECODER.BIDIRECTIONAL,
+            input_size,
+            hidden_size,
+            num_layers,
+            bias,
+            batch_first=True,
+            dropout=dropout,
+            bidirectional=bidirectional,
         )
 
-        NUM_DIRECTIONS = 2 if cfg.MODEL.DECODER.BIDIRECTIONAL else 1
+        NUM_DIRECTIONS = 2 if bidirectional else 1
         self.out = nn.Linear(
-            NUM_DIRECTIONS * cfg.MODEL.DECODER.HIDDEN_SIZE,
-            cfg.MODEL.DECODER.VOCAB_SIZE,
-            cfg.MODEL.DECODER.OUT_BIAS,
+            NUM_DIRECTIONS * hidden_size,
+            vocab_size,
+            bias=bias,
         )
         self.decode = self.forward
 
     def forward(self, images):
+        r"""
+        Args:
+            images: a tensor of (T, B, E)
+        """
         outputs, _ = self.lstm(images)                          # T, B, H*num_direction
         outputs = self.out(outputs)                             # T, B, V or B, T, V
-
-        if self.lstm.batch_first:
-            B, T = outputs.size(0), outputs.size(1)
-        else:
-            B, T = outputs.size(1), outputs.size(0)
+        B, T = outputs.size(0), outputs.size(1)
 
         lengths = torch.empty(B, device=images.device, dtype=torch.long).fill_(T)
 

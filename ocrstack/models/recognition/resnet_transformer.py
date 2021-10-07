@@ -5,15 +5,16 @@ from typing import Optional, Tuple
 import torch
 import torch.nn.functional as F
 from ocrstack.data.collate import Batch
-from ocrstack.models.base import ITrainableS2S
-from ocrstack.models.layers.attention import ScaledDotProductAttention
-from ocrstack.models.layers.embedding import Embedding
-from ocrstack.models.layers.positional_encoding import (PositionalEncoding1d,
-                                                        PositionalEncoding2d)
-from ocrstack.models.layers.sequence_decoder import TransformerDecoder
-from ocrstack.models.layers.transformer import TransformerDecoderLayer
+from ocrstack.ops.attention import ScaledDotProductAttention
+from ocrstack.ops.embedding import Embedding
+from ocrstack.ops.positional_encoding import (PositionalEncoding1d,
+                                              PositionalEncoding2d)
+from ocrstack.ops.sequence_decoder import TransformerDecoder
+from ocrstack.ops.transformer import TransformerDecoderLayer
 from torch import Tensor, nn
 from torchvision import models
+
+from .base import ITrainableS2S
 
 
 @dataclass()

@@ -1,6 +1,6 @@
 import torch
 import pytest
-from ocrstack.models.layers.attention_lstm import AttentionGRUCell, AttentionLSTMCell
+from ocrstack.ops.attention_lstm import AttentionGRUCell, AttentionLSTMCell
 
 
 @pytest.mark.parametrize('num_cells', (1, 2))

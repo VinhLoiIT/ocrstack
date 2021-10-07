@@ -1,6 +1,6 @@
 import torch
 from ocrstack.config.config import Config
-from ocrstack.models.layers.sequence_encoder import TransformerEncoderAdapter
+from ocrstack.ops.sequence_encoder import TransformerEncoderAdapter
 
 
 def test_transformer_encoder_adapter_forward():
