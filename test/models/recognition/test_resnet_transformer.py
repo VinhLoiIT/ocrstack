@@ -1,6 +1,7 @@
 import pytest
 import torch
-from ocrstack.models.recognition import ResNetTransformerCfg, ResNetTransformer
+
+from ocrstack.models.recognition import ResNetTransformer, ResNetTransformerCfg
 
 
 @pytest.fixture()

@@ -1,4 +1,4 @@
-ocrstack.engine 
+ocrstack.engine
 =========================
 
 .. automodule:: ocrstack.engine

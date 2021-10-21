@@ -1,4 +1,5 @@
 import torch
+
 from ocrstack.config.config import Config
 from ocrstack.ops.sequence_encoder import TransformerEncoderAdapter
 

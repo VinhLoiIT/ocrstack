@@ -1,6 +1,7 @@
 import pytest
 import torch
 import torch.nn as nn
+
 from ocrstack.ops.attention import DotProductAttention
 from ocrstack.ops.attention_lstm import AttentionLSTMCell
 from ocrstack.ops.sequence_decoder import (AttentionRecurrentDecoder,

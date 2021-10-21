@@ -1,7 +1,8 @@
-from ocrstack.data.collate import Batch
-from ocrstack.ops.sequence_decoder import ICTCDecode, IS2SDecode
 from torch import Tensor
 from torch.nn import Module
+
+from ocrstack.data.collate import Batch
+from ocrstack.ops.sequence_decoder import ICTCDecode, IS2SDecode
 
 
 class ITrainableModel(Module):

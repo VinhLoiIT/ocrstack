@@ -1,1 +1,1 @@
-from .resnet_transformer import ResNetTransformerCfg, ResNetTransformer
+from .resnet_transformer import ResNetTransformer, ResNetTransformerCfg

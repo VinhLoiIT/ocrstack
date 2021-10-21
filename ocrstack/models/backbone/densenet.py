@@ -1,13 +1,13 @@
 import re
+from collections import OrderedDict
+from typing import Any, List, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as cp
-from collections import OrderedDict
-from torchvision.models.utils import load_state_dict_from_url
 from torch import Tensor
-from typing import Any, List, Tuple
-
+from torchvision.models.utils import load_state_dict_from_url
 
 __all__ = ['DenseNet', 'densenet121', 'densenet169', 'densenet201', 'densenet161']
 

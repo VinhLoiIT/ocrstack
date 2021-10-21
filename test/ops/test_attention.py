@@ -1,7 +1,9 @@
 import pytest
 import torch
+
 from ocrstack.ops.attention import (AdditiveAttention, Attention,
-                                    DotProductAttention, ScaledDotProductAttention, attention)
+                                    DotProductAttention,
+                                    ScaledDotProductAttention, attention)
 
 
 def test_attention():

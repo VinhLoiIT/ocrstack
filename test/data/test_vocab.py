@@ -1,5 +1,6 @@
 import pytest
 import torch
+
 from ocrstack.data.vocab import CTCVocab, Seq2SeqVocab, Vocab
 
 

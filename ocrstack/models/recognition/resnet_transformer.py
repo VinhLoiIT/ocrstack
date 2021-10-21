@@ -4,6 +4,9 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn.functional as F
+from torch import Tensor, nn
+from torchvision import models
+
 from ocrstack.data.collate import Batch
 from ocrstack.ops.attention import ScaledDotProductAttention
 from ocrstack.ops.embedding import Embedding
@@ -11,8 +14,6 @@ from ocrstack.ops.positional_encoding import (PositionalEncoding1d,
                                               PositionalEncoding2d)
 from ocrstack.ops.sequence_decoder import TransformerDecoder
 from ocrstack.ops.transformer import TransformerDecoderLayer
-from torch import Tensor, nn
-from torchvision import models
 
 from .base import ITrainableS2S
 

@@ -1,6 +1,7 @@
-from ocrstack.models.backbone.unet import UNet
-import torch
 import pytest
+import torch
+
+from ocrstack.models.backbone.unet import UNet
 
 
 @pytest.mark.parametrize('batch_size', [1, 2])

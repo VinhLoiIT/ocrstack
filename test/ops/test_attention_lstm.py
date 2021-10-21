@@ -1,5 +1,6 @@
-import torch
 import pytest
+import torch
+
 from ocrstack.ops.attention_lstm import AttentionGRUCell, AttentionLSTMCell
 
 

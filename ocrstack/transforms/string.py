@@ -2,6 +2,7 @@ from typing import List, Mapping
 
 import torch
 import torch.nn.functional as F
+
 from ocrstack.data.vocab import Seq2SeqVocab
 
 __all__ = ['Replace', 'ToCharList',

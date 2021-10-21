@@ -1,2 +1,2 @@
-from .dataset import PairFileDataset, CSVDataset
-from .vocab import Vocab, CTCVocab, Seq2SeqVocab
+from .dataset import CSVDataset, PairFileDataset
+from .vocab import CTCVocab, Seq2SeqVocab, Vocab

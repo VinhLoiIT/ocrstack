@@ -3,8 +3,9 @@ from io import StringIO
 from typing import Dict, List, Optional
 
 import torch
-from ocrstack.models.base import ITrainableModel
 from torch.utils.tensorboard.writer import SummaryWriter
+
+from ocrstack.models.base import ITrainableModel
 
 
 class ILogger:

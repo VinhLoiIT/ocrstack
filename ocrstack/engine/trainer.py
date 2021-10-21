@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
 import torch
+from torch.utils.data.dataloader import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
 from ocrstack.config.config import Config
 from ocrstack.data.collate import Batch
 from ocrstack.data.vocab import Seq2SeqVocab
@@ -12,8 +15,6 @@ from ocrstack.metrics.metric import AverageMeter
 from ocrstack.metrics.ocr import (ACCMeter, GlobalCERMeter, GlobalWERMeter,
                                   NormCERMeter, NormWERMeter)
 from ocrstack.models.base import ITrainableS2S
-from torch.utils.data.dataloader import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
 from .utils import set_seed
 

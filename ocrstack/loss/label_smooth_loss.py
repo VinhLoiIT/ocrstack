@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ocrstack.data.collate import Batch
 from torch.nn.utils.rnn import pack_padded_sequence
+
+from ocrstack.data.collate import Batch
 
 
 class LabelSmoothingLoss(nn.Module):

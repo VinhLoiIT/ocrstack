@@ -1,2 +1,2 @@
 from .image import ScaleHeight
-from .string import Replace, ToCharList, OneHotEncoding, AddSeq2SeqTokens
+from .string import AddSeq2SeqTokens, OneHotEncoding, Replace, ToCharList
