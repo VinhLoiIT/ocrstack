@@ -42,7 +42,7 @@ class Registry(Iterable[Tuple[str, Any]]):
         )
         self._obj_map[name] = obj
 
-    def register(self, obj: Any = None) -> Any:
+    def register(self, obj: Any = None, prefix: str = '') -> Any:
         """
         Register the given object under the the name `obj.__name__`.
         Can be used as either a decorator or not. See docstring of this class for usage.
@@ -50,14 +50,14 @@ class Registry(Iterable[Tuple[str, Any]]):
         if obj is None:
             # used as a decorator
             def deco(func_or_class: Any) -> Any:
-                name = func_or_class.__name__
+                name = prefix + func_or_class.__name__
                 self._do_register(name, func_or_class)
                 return func_or_class
 
             return deco
 
         # used as a function call
-        name = obj.__name__
+        name = prefix + obj.__name__
         self._do_register(name, obj)
 
     def get(self, name: str) -> Any:
@@ -67,6 +67,11 @@ class Registry(Iterable[Tuple[str, Any]]):
                 "No object named '{}' found in '{}' registry!".format(name, self._name)
             )
         return ret
+
+    def build_from_cfg(self, cfg) -> Any:
+        args = cfg.get('args', None) or []
+        kwargs = cfg.get('kwargs', None) or {}
+        return self.get(cfg['name'])(*args, **kwargs)
 
     def __contains__(self, name: str) -> bool:
         return name in self._obj_map
