@@ -16,3 +16,10 @@ For documentation, please visit [ocrstack.readthedocs.io](https://ocrstack.readt
 ```bash
 pip install ocrstack
 ```
+
+
+# Citation
+
+# Reference
+
+- `fvcore`: https://github.com/facebookresearch/fvcore
