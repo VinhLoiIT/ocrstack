@@ -33,9 +33,12 @@ def test_transformer_encoder(batch_size, length, d_model, nhead):
     assert outputs.shape == torch.Size([batch_size, length, d_model])
 
 
-def test_build_seq2seq_module():
+@pytest.mark.parametrize('eval_mode', [True, False])
+def test_build_seq2seq_module(eval_mode):
     cfg = load_yaml('test/config/r18_transformer.yaml')
     module = build_module(cfg)
+    if eval_mode:
+        module.eval()
     inputs = {
         'images': _create_dummy_image(batch_size=1),
         'targets': _create_dummy_sequence_indices(batch_size=1, length=10, max_index=100)[0]
