@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 
 def _create_dummy_image(batch_size: int = 1,
@@ -14,18 +15,18 @@ def _create_dummy_image(batch_size: int = 1,
 
 
 def _create_dummy_sequence(batch_size: int = 1,
-                          length: int = 10,
-                          channels: int = 5,
-                          dtype=torch.float,
-                          device=torch.device('cpu')):
+                           length: int = 10,
+                           channels: int = 5,
+                           dtype=torch.float,
+                           device=torch.device('cpu')):
     return torch.rand((batch_size, length, channels), dtype=dtype, device=device)
 
 
 def _create_dummy_sequence_indices(batch_size: int = 1,
-                                  length: int = 10,
-                                  max_index: int = 5,
-                                  one_hot: bool = False,
-                                  device=torch.device('cpu')):
+                                   length: int = 10,
+                                   max_index: int = 5,
+                                   one_hot: bool = False,
+                                   device=torch.device('cpu')):
     dummy = torch.randint(0, max_index, (batch_size, length), device=device)
     dummy_onehot = None
     if one_hot:

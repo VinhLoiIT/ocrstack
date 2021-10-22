@@ -18,4 +18,4 @@ def test_resnet(arch, batch_size, in_channels, num_layers):
     }
     backbone = build_module(cfg)
     dummy_input = _create_dummy_image(batch_size, in_channels)
-    outputs = backbone.forward(dummy_input)
+    backbone.forward(dummy_input)

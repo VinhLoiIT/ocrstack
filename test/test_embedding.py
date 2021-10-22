@@ -14,4 +14,4 @@ def test_transformer_pe_1d(batch_size):
     }
     module = build_module(cfg)
     dummy_input = _create_dummy_sequence(batch_size, channels=6)
-    outputs = module.forward(dummy_input)
+    module.forward(dummy_input)

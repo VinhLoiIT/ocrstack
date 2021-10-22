@@ -1,6 +1,7 @@
 import pytest
 import torch
-from common_utils import _create_dummy_sequence
+from common_utils import (_create_dummy_image, _create_dummy_sequence,
+                          _create_dummy_sequence_indices)
 
 from ocrstack.core.builder import build_module
 from ocrstack.core.loading import load_yaml
@@ -35,6 +36,11 @@ def test_transformer_encoder(batch_size, length, d_model, nhead):
 def test_build_seq2seq_module():
     cfg = load_yaml('test/config/r18_transformer.yaml')
     module = build_module(cfg)
+    inputs = {
+        'images': _create_dummy_image(),
+        'targets': _create_dummy_sequence_indices(max_index=100)[0]
+    }
+    module.forward(inputs)
 
 
 def test_generate_square_subsequent_mask():

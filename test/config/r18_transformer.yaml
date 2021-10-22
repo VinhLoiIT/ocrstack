@@ -1,15 +1,20 @@
 name: Seq2SeqModule
 args:
+  backbone:
+    name: resnet18
+    args:
+      pretrained: false
+      num_layers: 3
   encoder:
     name: TransformerEncoder
     args:
-      d_model: 12
-      nhead: 6
+      d_model: 256
+      nhead: 2
   decoder:
     name: TransformerDecoder
     args:
-      d_model: 12
-      nhead: 6
+      d_model: 256
+      nhead: 2
   src_embedding:
     name: Sequential
     args:
