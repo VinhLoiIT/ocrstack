@@ -1,3 +1,3 @@
-from .backbone import *
-from .embedding import *
-from .recognition import *
+from .backbone import *  # noqa
+from .embedding import *  # noqa
+from .recognition import *  # noqa

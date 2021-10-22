@@ -1,7 +1,6 @@
 from typing import Any, Dict, Optional, Tuple
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
@@ -81,8 +80,7 @@ class Seq2SeqModule(ITrainableS2S):
 
         if self.tgt_embedding is not None:
             targets = self.tgt_embedding(targets)
-
-        tgt_mask = generate_square_subsequent_mask(targets.size(1)).unsqueeze(0).to(memory.device)
+        tgt_mask = generate_square_subsequent_mask(targets.size(1)).to(memory.device)
         memory_mask = None
         out = self.decoder(targets, memory, tgt_mask, memory_mask, tgt_key_padding_mask)
         out = self.classifier(out)                   # [B, T, V]
@@ -93,7 +91,6 @@ class Seq2SeqModule(ITrainableS2S):
 
     def _forward_infer(self, memory: torch.Tensor) -> Dict[str, Any]:
         pass
-
 
     @torch.jit.export
     def decode_greedy(self, memory, max_length, memory_key_padding_mask=None):
@@ -133,11 +130,3 @@ class Seq2SeqModule(ITrainableS2S):
         tgt = batch.text[:, 1:]                             # B, T
         loss = self.compute_loss(logits, tgt)
         return loss
-
-    @torch.jit.export
-    def decode_greedy(self, images, max_length, image_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
-        memory = self.image_embed(images)
-        B, C, H, W = memory.shape
-        memory = memory.reshape(B, C, H*W).transpose(1, 2)  # B, S, E
-        return self.decoder.decode_greedy(memory, max_length)
