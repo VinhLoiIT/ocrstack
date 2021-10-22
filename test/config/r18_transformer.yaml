@@ -1,0 +1,29 @@
+name: Seq2SeqModule
+args:
+  encoder:
+    name: TransformerEncoder
+    args:
+      d_model: 12
+      nhead: 6
+  decoder:
+    name: TransformerDecoder
+    args:
+      d_model: 12
+      nhead: 6
+  src_embedding:
+    name: Sequential
+    args:
+  tgt_embedding:
+    name: Sequential
+    args:
+      - name: Embedding
+        args:
+          vocab_size: 100
+          embed_dim: 256
+          pad_idx: 0
+  classifier:
+    name: LinearClassifier
+    args:
+      embed_dim: 256
+      vocab_size: 100
+  pad_idx: 0

@@ -73,7 +73,22 @@ class Registry(Iterable[Tuple[str, Any]]):
         return self.get(cfg['name'])(**args)
 
     def build_from_cfg(self, cfg: Dict) -> Any:
-        return self._make_instance(cfg)
+        if isinstance(cfg, list):
+            return [self.build_from_cfg(item) for item in cfg]
+        if isinstance(cfg, Dict):
+            if 'name' in cfg.keys():
+                args = cfg.get('args', {}) or {}
+                args = self.build_from_cfg(args)
+                if isinstance(args, list):
+                    return self.get(cfg['name'])(*args)
+                if isinstance(args, dict):
+                    return self.get(cfg['name'])(**args)
+            else:
+                return {
+                    k: self.build_from_cfg(v) for k, v in cfg.items()
+                }
+
+        return cfg
 
     def __contains__(self, name: str) -> bool:
         return name in self._obj_map
@@ -90,23 +105,3 @@ class Registry(Iterable[Tuple[str, Any]]):
 
     # pyre-fixme[4]: Attribute must be annotated.
     __str__ = __repr__
-
-
-class RegistryComposite(Registry):
-
-    def build_from_cfg(self, cfg) -> Any:
-        if isinstance(cfg, list):
-            return [self.build_from_cfg(item) for item in cfg]
-        if isinstance(cfg, Dict):
-            if 'name' in cfg.keys():
-                # try:
-                args = cfg.get('args', None) or {}
-                return self.get(cfg['name'])(args)
-                # except KeyError:
-                    # return cfg
-            else:
-                return {
-                    k: self.build_from_cfg(v) for k, v in cfg.items()
-                }
-
-        return cfg

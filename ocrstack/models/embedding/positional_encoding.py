@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from ocrstack.core.builder import EMBEDDING_REGISTRY
+from ocrstack.core.builder import MODULE_REGISTRY
 
 
-@EMBEDDING_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class TransformerPE1D(nn.Module):
 
     def __init__(self, d_model, dropout=0.1, max_len=5000):
@@ -25,7 +25,7 @@ class TransformerPE1D(nn.Module):
         return self.dropout(x)
 
 
-@EMBEDDING_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class TransformerPE2D(nn.Module):
 
     def __init__(self, d_model, dropout=0.1, max_len=5000):
@@ -53,7 +53,7 @@ class TransformerPE2D(nn.Module):
         return self.dropout(x)
 
 
-@EMBEDDING_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class PEAdaptive2D(nn.Module):
     '''
     Adaptive 2D positional encoding

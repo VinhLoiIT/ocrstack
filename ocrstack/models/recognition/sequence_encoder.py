@@ -3,10 +3,10 @@ from typing import Optional
 import torch.nn as nn
 from torch import Tensor
 
-from ocrstack.core.builder import ENCODER_REGISTRY
+from ocrstack.core.builder import MODULE_REGISTRY
 
 
-@ENCODER_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class TransformerEncoder(nn.TransformerEncoder):
     def __init__(self,
                  d_model: int,

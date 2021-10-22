@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from .utils import generate_square_subsequent_mask
+from ocrstack.core.builder import MODULE_REGISTRY
 
 
 class IS2SDecode:
@@ -89,81 +89,29 @@ class ICTCDecode:
         raise NotImplementedError()
 
 
-class TransformerDecoder(nn.Module, IS2SDecode):
+@MODULE_REGISTRY.register()
+class TransformerDecoder(nn.TransformerDecoder):
 
     '''
     This class adapts `nn.TransformerDecoder` class to the stack
     '''
 
     def __init__(self,
-                 text_embed: nn.Module,
-                 fc: nn.Module,
-                 transformer_layer,
-                 sos_idx: int,
-                 eos_idx: int,
-                 pad_idx: int,
+                 d_model: int,
+                 nhead: int,
+                 dim_feedforward: int = 2048,
+                 dropout: float = 0.1,
+                 activation: str = "relu",
+                 layer_norm_eps: float = 1e-5,
                  num_layers: int = 1,
-                 layer_norm: Optional[nn.LayerNorm] = None):
-        super(TransformerDecoder, self).__init__()
-        self.text_embed = text_embed
-        self.fc = fc
-        self.layers = _get_clones(transformer_layer, num_layers)
-        self.layer_norm = layer_norm
+                 layer_norm: bool = False):
+        norm = None
+        if layer_norm:
+            norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
 
-        self.sos_idx = sos_idx
-        self.eos_idx = eos_idx
-        self.pad_idx = pad_idx
-        self.num_layers = num_layers
-
-    def forward(self, memory, tgt, memory_key_padding_mask=None):
-        # type: (Tensor, Tensor, Optional[Tensor]) -> Tensor
-        '''
-        Arguments:
-        ----------
-        - memory: (B, S, E)
-        - tgt: (B, T)
-
-        Returns:
-        --------
-        - logits: (B, T, V)
-        '''
-        tgt_key_padding_mask = (tgt == self.pad_idx)
-        tgt = self.text_embed(tgt)                    # [B, T, E]
-        tgt_mask = generate_square_subsequent_mask(tgt.size(1)).unsqueeze(0).to(memory.device)
-        memory_mask = None
-
-        out = tgt
-        for layer in self.layers:
-            out = layer(out, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask)
-
-        if self.layer_norm is not None:
-            out = self.layer_norm(out)
-
-        out = self.fc(out)                   # [B, T, V]
-        return out
-
-    @torch.jit.export
-    def decode_greedy(self, memory, max_length, memory_key_padding_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
-        batch_size = memory.size(0)
-        sos_inputs = torch.full((batch_size, 1), self.sos_idx, dtype=torch.long, device=memory.device)  # [B, 1]
-        scores = torch.zeros(batch_size, device=memory.device)                                          # [B]
-
-        inputs = sos_inputs                                                                             # [B, T=1]
-        end_flag = torch.zeros(batch_size, dtype=torch.bool, device=memory.device)                      # [B]
-        for _ in range(max_length + 1):
-            output = self.forward(memory, inputs, memory_key_padding_mask)                              # [B, T, V]
-            output = F.log_softmax(output[:, [-1]], dim=-1)                                             # [B, 1, V]
-            score, index = output.max(dim=-1)                                                           # [B, 1]
-            scores = scores + score.squeeze(1)                                                          # [B]
-            inputs = torch.cat((inputs, index), dim=1)                                                  # [B, T+1]
-
-            # early break
-            end_flag = end_flag | (index == self.eos_idx)                                               # [B]
-            if end_flag.all():
-                break
-
-        return inputs, torch.exp(scores)                                                                # [B, T], [B]
+        layer = nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout,
+                                           activation, layer_norm_eps, batch_first=True)
+        super(TransformerDecoder, self).__init__(layer, num_layers, norm)
 
 
 class AttentionRecurrentDecoder(nn.Module):
@@ -298,6 +246,20 @@ class VisualLSTMDecoder(nn.Module):
         lengths = torch.empty(B, device=images.device, dtype=torch.long).fill_(T)
 
         return outputs, lengths
+
+
+def generate_padding_mask_from_lengths(lengths: torch.Tensor) -> torch.Tensor:
+    B, S = len(lengths), lengths.max()
+    padding_mask = torch.arange(0, S, device=lengths.device).expand(B, S) >= lengths.unsqueeze(-1)
+    return padding_mask
+
+
+def generate_square_subsequent_mask(sz: int) -> torch.Tensor:
+    r"""Generate a square mask for the sequence. The masked positions are True.
+        Unmasked positions are filled with False.
+    """
+    mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+    return mask
 
 
 def _get_clones(layer: nn.Module, num_layers: int) -> nn.ModuleList:

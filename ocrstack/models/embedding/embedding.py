@@ -1,32 +1,13 @@
 import math
-from typing import Dict, List
 
 import torch.nn as nn
 
-from ocrstack.core.builder import EMBEDDING_REGISTRY
+from ocrstack.core.builder import MODULE_REGISTRY
+
+MODULE_REGISTRY._do_register('Sequential', nn.Sequential)
 
 
-@EMBEDDING_REGISTRY.register()
-class ListModuleEmbedding(nn.Module):
-    def __init__(self, layers: List[nn.Module]):
-        super().__init__()
-        self.layers = nn.Sequential(*layers)
-
-    def forward(self, inputs):
-        return self.layers(inputs)
-
-
-@EMBEDDING_REGISTRY.register()
-class DictModuleEmbedding(nn.Module):
-    def __init__(self, layers: Dict[str, nn.Module]):
-        super().__init__()
-        self.layers = nn.Sequential(layers)
-
-    def forward(self, inputs):
-        return self.layers(inputs)
-
-
-@EMBEDDING_REGISTRY.register()
+@MODULE_REGISTRY.register()
 class Embedding(nn.Module):
     def __init__(self,
                  vocab_size,
@@ -43,3 +24,9 @@ class Embedding(nn.Module):
         inputs = self.embed(inputs) * math.sqrt(self.embed_dim)
         inputs = self.dropout(inputs)
         return inputs
+
+
+@MODULE_REGISTRY.register()
+class LinearClassifier(nn.Linear):
+    def __init__(self, embed_dim: int, vocab_size: int, bias: bool = True) -> None:
+        super().__init__(embed_dim, vocab_size, bias=bias)
