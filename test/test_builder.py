@@ -13,7 +13,7 @@ from ocrstack.core.builder import (build_backbone, build_embedding,
 def test_resnet(arch, batch_size, in_channels, num_layers):
     cfg = {
         'name': arch,
-        'kwargs': {
+        'args': {
             'in_channels': in_channels,
             'num_layers': num_layers
         }
@@ -27,7 +27,7 @@ def test_resnet(arch, batch_size, in_channels, num_layers):
 def test_transformer_pe_1d(batch_size):
     cfg = {
         'name': 'TransformerPE1D',
-        'kwargs': {
+        'args': {
             'd_model': 6,
         }
     }
@@ -43,7 +43,7 @@ def test_transformer_pe_1d(batch_size):
 def test_transformer_encoder(batch_size, length, d_model, nhead):
     cfg = {
         'name': 'TransformerEncoder',
-        'kwargs': {
+        'args': {
             'd_model': d_model,
             'nhead': nhead,
             'dim_feedforward': 18,

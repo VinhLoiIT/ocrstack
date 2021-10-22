@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Optional
 
 import torch.nn as nn
 from torch import Tensor
@@ -7,7 +7,7 @@ from ocrstack.core.builder import ENCODER_REGISTRY
 
 
 @ENCODER_REGISTRY.register()
-class TransformerEncoder(nn.Module):
+class TransformerEncoder(nn.TransformerEncoder):
     def __init__(self,
                  d_model: int,
                  nhead: int,
@@ -18,24 +18,19 @@ class TransformerEncoder(nn.Module):
                  layer_norm: bool = False,
                  layer_norm_eps: float = 0.00001,
                  ):
-        super(TransformerEncoder, self).__init__()
-
         norm = None
         if layer_norm:
             norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
 
-        self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
+        layer = nn.TransformerEncoderLayer(
                 d_model,
                 nhead,
                 dim_feedforward,
                 dropout,
                 activation,
                 batch_first=True,
-            ),
-            num_layers,
-            norm,
         )
+        super(TransformerEncoder, self).__init__(layer, num_layers, norm)
 
     def forward(self, src, src_key_padding_mask=None):
         # type: (Tensor, Optional[Tensor]) -> Tensor
@@ -49,5 +44,5 @@ class TransformerEncoder(nn.Module):
         --------
         - output of shape (B, T, E)
         '''
-        output = self.encoder(src, src_key_padding_mask=src_key_padding_mask)
+        output = super().forward(src, src_key_padding_mask=src_key_padding_mask)
         return output

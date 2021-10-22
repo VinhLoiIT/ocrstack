@@ -1,11 +1,11 @@
-from .registry import Registry
+from .registry import Registry, RegistryComposite
 
 LOSS_REGISTRY = Registry('Loss')
 BACKBONE_REGISTRY = Registry('Backbone')
 ENCODER_REGISTRY = Registry('Encoder')
 DECODER_REGISTRY = Registry('Decoder')
 EMBEDDING_REGISTRY = Registry('Embedding')
-MODEL_REGISTRY = Registry('Model')
+MODEL_REGISTRY = RegistryComposite('Model')
 
 
 def build_backbone(cfg):
