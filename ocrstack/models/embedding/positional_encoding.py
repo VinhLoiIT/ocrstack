@@ -1,11 +1,15 @@
 import torch
 import torch.nn as nn
 
+from ocrstack.core.builder import EMBEDDING_REGISTRY
 
-class PositionalEncoding1d(nn.Module):
 
-    def __init__(self, d_model, batch_first=False, dropout=0.1, max_len=5000):
+@EMBEDDING_REGISTRY.register()
+class TransformerPE1D(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
         super().__init__()
+        assert d_model % 2 == 0, d_model
         self.dropout = nn.Dropout(p=dropout, inplace=True)
 
         pe = torch.zeros(max_len, d_model)
@@ -13,11 +17,7 @@ class PositionalEncoding1d(nn.Module):
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))  # [E]
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze_(1)
-
-        self.batch_first = batch_first
-        if self.batch_first:
-            pe.transpose_(0, 1)
+        pe = pe.unsqueeze_(0).contiguous()  # [1, T, E]
         self.register_buffer('pe', pe)
 
     def forward(self, x):
@@ -25,7 +25,8 @@ class PositionalEncoding1d(nn.Module):
         return self.dropout(x)
 
 
-class PositionalEncoding2d(nn.Module):
+@EMBEDDING_REGISTRY.register()
+class TransformerPE2D(nn.Module):
 
     def __init__(self, d_model, dropout=0.1, max_len=5000):
         super().__init__()
@@ -52,7 +53,8 @@ class PositionalEncoding2d(nn.Module):
         return self.dropout(x)
 
 
-class A2DPE(nn.Module):
+@EMBEDDING_REGISTRY.register()
+class PEAdaptive2D(nn.Module):
     '''
     Adaptive 2D positional encoding
     https://arxiv.org/pdf/1910.04396.pdf
