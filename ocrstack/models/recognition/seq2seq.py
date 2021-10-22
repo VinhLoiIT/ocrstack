@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
 import torch
 import torch.nn.functional as F
@@ -42,6 +42,8 @@ class Seq2SeqModule(ITrainableS2S):
         self.classifier = build_module(cfg['classifier'])
 
         self.pad_idx: int = cfg['pad_idx']
+        self.sos_idx: int = cfg['sos_idx']
+        self.eos_idx: int = cfg['eos_idx']
 
     def forward(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         images: Tensor = inputs['images']
@@ -60,7 +62,8 @@ class Seq2SeqModule(ITrainableS2S):
             memory = self.encoder(memory)
 
         if not self.training and 'targets' not in inputs.keys():
-            return self._forward_infer(memory)
+            max_length: int = inputs['max_length']
+            return self._forward_infer(memory, max_length)
 
         targets: Tensor = inputs['targets']
         return self._forward_train(memory, targets)
@@ -88,21 +91,25 @@ class Seq2SeqModule(ITrainableS2S):
             'logits': out
         }
 
-    def _forward_infer(self, memory: torch.Tensor) -> Dict[str, Any]:
-        pass
-
-    @torch.jit.export
-    def decode_greedy(self, memory, max_length, memory_key_padding_mask=None):
-        # type: (Tensor, int, Optional[Tensor]) -> Tuple[Tensor, Tensor]
+    def _forward_infer(self,
+                       memory: torch.Tensor,
+                       max_length: int,
+                       memory_key_padding_mask: torch.Tensor = None) -> Dict[str, Any]:
         batch_size = memory.size(0)
         sos_inputs = torch.full((batch_size, 1), self.sos_idx, dtype=torch.long, device=memory.device)  # [B, 1]
         scores = torch.zeros(batch_size, device=memory.device)                                          # [B]
+        tgt_mask = generate_square_subsequent_mask(max_length + 2).to(memory.device)
+        memory_mask = None
 
         inputs = sos_inputs                                                                             # [B, T=1]
         end_flag = torch.zeros(batch_size, dtype=torch.bool, device=memory.device)                      # [B]
-        for _ in range(max_length + 1):
-            output = self.forward(memory, inputs, memory_key_padding_mask)                              # [B, T, V]
-            output = F.log_softmax(output[:, [-1]], dim=-1)                                             # [B, 1, V]
+        for step in range(max_length + 1):
+            inputs_embed = self.tgt_embedding(inputs)
+            attn_mask = tgt_mask[:step + 1, :step + 1]
+            output = self.decoder(inputs_embed, memory, attn_mask,
+                                  memory_mask, memory_key_padding_mask)                                 # [B, T, V]
+            output = self.classifier(output[:, [-1]])                                                   # [B, 1, V]
+            output = F.log_softmax(output, dim=-1)                                                      # [B, 1, V]
             score, index = output.max(dim=-1)                                                           # [B, 1]
             scores = scores + score.squeeze(1)                                                          # [B]
             inputs = torch.cat((inputs, index), dim=1)                                                  # [B, T+1]
@@ -112,7 +119,10 @@ class Seq2SeqModule(ITrainableS2S):
             if end_flag.all():
                 break
 
-        return inputs, torch.exp(scores)                                                                # [B, T], [B]
+        return {
+            'predicts': inputs,                                                                         # [B, T]
+            'scores': torch.exp(scores),                                                                # [B]
+        }
 
     def compute_loss(self, logits: Tensor, targets: Tensor) -> Tensor:
         r'''

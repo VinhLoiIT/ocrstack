@@ -47,17 +47,29 @@ def test_build_seq2seq_module(eval_mode):
     assert outputs['logits'].shape == torch.Size([1, 10, 100])
 
 
+def test_build_seq2seq_module_infer():
+    cfg = load_yaml('test/config/r18_transformer.yaml')
+    module = build_module(cfg).eval()
+    inputs = {
+        'images': _create_dummy_image(batch_size=1),
+        'max_length': 10,
+    }
+    with torch.no_grad():
+        outputs = module.forward(inputs)
+    assert outputs['predicts'].shape[0] == 1
+    assert outputs['predicts'].shape[1] <= inputs['max_length'] + 2
+    assert (outputs['scores'] <= 1.0).all() and (outputs['scores'] >= 0).all()
+
+
 def test_generate_square_subsequent_mask():
-    mask = generate_square_subsequent_mask(5)
-    expected_mask = torch.tensor([[1, 0, 0, 0, 0],
-                                  [1, 1, 0, 0, 0],
-                                  [1, 1, 1, 0, 0],
-                                  [1, 1, 1, 1, 0],
-                                  [1, 1, 1, 1, 1]], dtype=torch.bool)
+    mask = generate_square_subsequent_mask(3)
+    expected_mask = torch.tensor([[0, float('-inf'), float('-inf')],
+                                  [0, 0, float('-inf')],
+                                  [0, 0, 0]])
     assert torch.equal(mask, expected_mask)
 
     mask = generate_square_subsequent_mask(1)
-    expected_mask = torch.tensor([[True]])
+    expected_mask = torch.tensor([[0.0]])
     assert torch.equal(mask, expected_mask)
 
 

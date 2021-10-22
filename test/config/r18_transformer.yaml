@@ -32,3 +32,5 @@ args:
       embed_dim: 256
       vocab_size: 100
   pad_idx: 0
+  sos_idx: 1
+  eos_idx: 2
