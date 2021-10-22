@@ -1,1 +1,1 @@
-from .resnet_transformer import ResNetTransformer, ResNetTransformerCfg
+from .sequence_encoder import TransformerEncoder
