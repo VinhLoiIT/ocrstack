@@ -84,9 +84,8 @@ class Seq2SeqModule(ITrainableS2S):
         memory_mask = None
         out = self.decoder(targets, memory, tgt_mask, memory_mask, tgt_key_padding_mask)
         out = self.classifier(out)                   # [B, T, V]
-        logits = self.decoder(memory, targets)
         return {
-            'logits': logits
+            'logits': out
         }
 
     def _forward_infer(self, memory: torch.Tensor) -> Dict[str, Any]:

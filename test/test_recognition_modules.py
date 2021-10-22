@@ -37,10 +37,11 @@ def test_build_seq2seq_module():
     cfg = load_yaml('test/config/r18_transformer.yaml')
     module = build_module(cfg)
     inputs = {
-        'images': _create_dummy_image(),
-        'targets': _create_dummy_sequence_indices(max_index=100)[0]
+        'images': _create_dummy_image(batch_size=1),
+        'targets': _create_dummy_sequence_indices(batch_size=1, length=10, max_index=100)[0]
     }
-    module.forward(inputs)
+    outputs = module.forward(inputs)
+    assert outputs['logits'].shape == torch.Size([1, 10, 100])
 
 
 def test_generate_square_subsequent_mask():
