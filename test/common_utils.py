@@ -14,6 +14,19 @@ def _create_dummy_image(batch_size: int = 1,
     return torch.rand(batch_size, channels, height, width, dtype=dtype, device=device)
 
 
+def _create_dummy_image_mask(batch_size: int = 1,
+                             num_classes: int = 3,
+                             height: int = 64,
+                             width: int = 64,
+                             one_hot: bool = False,
+                             device=torch.device('cpu')):
+
+    dummy = torch.randint(0, num_classes, (batch_size, height, width), dtype=torch.long, device=device)
+    if one_hot:
+        dummy = F.one_hot(dummy, num_classes)
+    return dummy
+
+
 def _create_dummy_sequence(batch_size: int = 1,
                            length: int = 10,
                            channels: int = 5,
