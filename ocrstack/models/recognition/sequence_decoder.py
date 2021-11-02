@@ -258,7 +258,9 @@ def generate_square_subsequent_mask(sz: int) -> torch.Tensor:
     r"""Generate a square mask for the sequence. The masked positions are True.
         Unmasked positions are filled with False.
     """
-    return nn.Transformer.generate_square_subsequent_mask(sz)
+    mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+    mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+    return mask
 
 
 def _get_clones(layer: nn.Module, num_layers: int) -> nn.ModuleList:
